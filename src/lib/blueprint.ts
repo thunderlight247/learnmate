@@ -120,6 +120,46 @@ Rules:
 `.trim();
 
 /**
+ * Best-effort repair for JSON truncated when max_tokens is hit.
+ * Closes unclosed strings, arrays, and objects so JSON.parse can
+ * recover the nodes that were already emitted.
+ */
+function repairTruncatedJson(s: string): string {
+  try { JSON.parse(s); return s; } catch { /* fall through to repair */ }
+
+  let result = s.trimEnd();
+
+  // Close unclosed string literal
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < result.length; i++) {
+    const ch = result[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\') { escaped = true; continue; }
+    if (ch === '"') inString = !inString;
+  }
+  if (inString) result += '"';
+
+  // Strip trailing comma (invalid before closing bracket)
+  result = result.replace(/,\s*$/, '');
+
+  // Close unclosed brackets/braces
+  const stack: string[] = [];
+  inString = false; escaped = false;
+  for (const ch of result) {
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\') { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') stack.push('}');
+    else if (ch === '[') stack.push(']');
+    else if (ch === '}' || ch === ']') stack.pop();
+  }
+  while (stack.length) result += stack.pop()!;
+  return result;
+}
+
+/**
  * Validates an AI-produced blueprint JSON string against the expected
  * shape: title, BOM items, nodes with unique ids, and edges that only
  * reference known nodes.
@@ -135,7 +175,10 @@ export function parseBlueprint(raw: string): Blueprint {
     .replace(/\s*```$/i, '')
     .trim();
 
-  const parsed: unknown = JSON.parse(cleaned);
+  // Repair truncated JSON before parsing (max_tokens hit mid-stream)
+  const repaired = repairTruncatedJson(cleaned);
+
+  const parsed: unknown = JSON.parse(repaired);
 
   if (typeof parsed !== 'object' || parsed === null) {
     throw new Error('AI response is not a JSON object.');
@@ -156,58 +199,74 @@ export function parseBlueprint(raw: string): Blueprint {
     throw new Error('AI response is missing the "edges" array.');
   }
 
-  for (const item of blueprint.billOfMaterials) {
-    if (
-      typeof item !== 'object' ||
-      item === null ||
-      typeof (item as BlueprintBomItem).item !== 'string' ||
-      typeof (item as BlueprintBomItem).quantity !== 'number' ||
-      typeof (item as BlueprintBomItem).description !== 'string' ||
-      typeof (item as BlueprintBomItem).estimatedCost !== 'string'
-    ) {
-      throw new Error('AI returned a bill-of-materials item with an invalid shape.');
-    }
-  }
+  // ── BOM: coerce quantity to number, fill missing fields with defaults ──
+  const normalizedBom: BlueprintBomItem[] = (blueprint.billOfMaterials as unknown[])
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    .map((item) => ({
+      item: String(item.item ?? 'Component'),
+      quantity: typeof item.quantity === 'number' ? item.quantity : Number(item.quantity) || 1,
+      description: String(item.description ?? ''),
+      estimatedCost: String(item.estimatedCost ?? 'N/A'),
+    }));
 
+  // ── Nodes: coerce / default any missing or wrong-typed fields ──
+  let posY = 100;
   const nodeIds = new Set<string>();
+  const normalizedNodes: BlueprintNode[] = (blueprint.nodes as unknown[])
+    .filter((n): n is Record<string, unknown> => typeof n === 'object' && n !== null)
+    .map((n, i) => {
+      const id = String(n.id ?? `node_${i + 1}`);
+      const px = typeof n.positionX === 'number' ? n.positionX : (i % 3) * 250 + 100;
+      if (i % 3 === 0 && i !== 0) posY += 200;
+      const py = typeof n.positionY === 'number' ? n.positionY : posY;
+      const props =
+        n.properties && typeof n.properties === 'object' && !Array.isArray(n.properties)
+          ? (n.properties as Record<string, string>)
+          : {};
+      nodeIds.add(id);
+      return {
+        id,
+        type: String(n.type ?? 'mechanical'),
+        label: String(n.label ?? id),
+        role: n.role ? String(n.role) : undefined,
+        importance: n.importance ? String(n.importance) : undefined,
+        damageEffect: n.damageEffect ? String(n.damageEffect) : undefined,
+        positionX: px,
+        positionY: py,
+        properties: props,
+      };
+    });
 
-  for (const node of blueprint.nodes) {
-    if (
-      typeof node !== 'object' ||
-      node === null ||
-      typeof (node as BlueprintNode).id !== 'string' ||
-      typeof (node as BlueprintNode).type !== 'string' ||
-      typeof (node as BlueprintNode).label !== 'string' ||
-      typeof (node as BlueprintNode).positionX !== 'number' ||
-      typeof (node as BlueprintNode).positionY !== 'number' ||
-      typeof (node as BlueprintNode).properties !== 'object' ||
-      (node as BlueprintNode).properties === null
-    ) {
-      throw new Error('AI returned a node with an invalid shape.');
-    }
-    nodeIds.add((node as BlueprintNode).id);
+  if (normalizedNodes.length === 0) {
+    throw new Error('AI response has no valid nodes to build a canvas.');
   }
 
-  if (nodeIds.size !== blueprint.nodes.length) {
-    throw new Error('AI returned duplicate node ids.');
-  }
+  // Deduplicate node ids (keep first occurrence)
+  const seenIds = new Set<string>();
+  const dedupedNodes = normalizedNodes.filter((n) => {
+    if (seenIds.has(n.id)) return false;
+    seenIds.add(n.id);
+    return true;
+  });
 
-  for (const edge of blueprint.edges) {
-    if (
-      typeof edge !== 'object' ||
-      edge === null ||
-      typeof (edge as BlueprintEdge).source !== 'string' ||
-      typeof (edge as BlueprintEdge).target !== 'string'
-    ) {
-      throw new Error('AI returned an edge with an invalid shape.');
-    }
-    const { source, target } = edge as BlueprintEdge;
-    if (!nodeIds.has(source) || !nodeIds.has(target)) {
-      throw new Error(`AI returned an edge referencing unknown nodes (${source} -> ${target}).`);
-    }
-  }
+  // ── Edges: drop any referencing unknown node ids ──
+  const validNodeIds = new Set(dedupedNodes.map((n) => n.id));
+  const normalizedEdges: BlueprintEdge[] = (blueprint.edges as unknown[])
+    .filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null)
+    .filter((e) => validNodeIds.has(String(e.source)) && validNodeIds.has(String(e.target)))
+    .map((e, i) => ({
+      id: String(e.id ?? `edge_${i + 1}`),
+      source: String(e.source),
+      target: String(e.target),
+      label: String(e.label ?? ''),
+    }));
 
-  return parsed as Blueprint;
+  return {
+    title: blueprint.title as string,
+    billOfMaterials: normalizedBom,
+    nodes: dedupedNodes,
+    edges: normalizedEdges,
+  };
 }
 
 export function buildBlueprintUserPrompt(topic: string, context: string): string {
@@ -263,6 +322,7 @@ export async function generateBlueprint(
   const aiResponse = await callOpenRouter(
     blueprintSystemPrompt,
     buildBlueprintUserPrompt(topic, context),
+    { maxTokens: 4000 },
   );
 
   let blueprint: Blueprint;

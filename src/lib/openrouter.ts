@@ -4,11 +4,15 @@
 const OPENROUTER_API_URL =
   'https://openrouter.ai/api/v1/chat/completions';
 
+interface OpenRouterMessage {
+  content?: string | null;
+  /** Some reasoning/thinking models put their final answer here instead of content */
+  reasoning?: string | null;
+}
+
 interface OpenRouterResponse {
   choices?: Array<{
-    message?: {
-      content?: string;
-    };
+    message?: OpenRouterMessage;
   }>;
 }
 
@@ -99,7 +103,10 @@ export async function callOpenRouterMessages(
   }
 
   const data = (await response.json()) as OpenRouterResponse;
-  const content = data.choices?.[0]?.message?.content;
+  const msg = data.choices?.[0]?.message;
+  // Some reasoning/thinking models (e.g. Nemotron) leave content null and
+  // put the full answer in message.reasoning instead. Fall back gracefully.
+  const content = msg?.content || msg?.reasoning;
 
   if (!content) {
     throw new Error('OpenRouter API returned no usable content.');
