@@ -1,3 +1,4 @@
+import '@/lib/polyfills';
 import { extractText, getDocumentProxy } from 'unpdf';
 
 // Converts a PDF file buffer into plain text before it is sent to the AI.

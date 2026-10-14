@@ -1,0 +1,105 @@
+// LearnMate database schema.
+//
+// knowledge.md expects this at the repo root in a two-level workspace; in
+// this checkout the app root IS the repo root, so it lives at
+// prisma/schema.prisma. The datasource enables pgvector for the Phase 2
+// embedding pipeline. Apply with `npx prisma db push` (no migrations dir).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// pgvector must be enabled on the database itself:
+// CREATE EXTENSION IF NOT EXISTS vector;
+
+model User {
+  id        String      @id @default(cuid())
+  email     String      @unique
+  name      String?
+  createdAt DateTime    @default(now())
+  workspaces Workspace[]
+}
+
+model Workspace {
+  id        String     @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime   @default(now())
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents Document[]
+  projects  Project[]
+}
+
+model Document {
+  id         String        @id @default(cuid())
+  workspaceId String
+  fileName   String
+  fileUrl    String
+  status     DocumentStatus @default(PENDING)
+  createdAt  DateTime      @default(now())
+  workspace  Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  chunks     DocumentChunk[]
+}
+
+enum DocumentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  ERROR
+}
+
+model DocumentChunk {
+  id         String   @id @default(cuid())
+  documentId String
+  content    String   @db.Text
+  embedding  Unsupported("vector(1536)")?
+  createdAt  DateTime @default(now())
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model Flashcard {
+  id          String   @id @default(cuid())
+  workspaceId String
+  front       String
+  back        String
+  repetitions Int      @default(0)
+  interval    Int      @default(0)
+  easeFactor  Float    @default(2.5)
+  dueDate     DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model Project {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  title            String
+  billOfMaterials  Json
+  createdAt        DateTime @default(now())
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  nodes            CanvasNode[]
+  edges            CanvasEdge[]
+}
+
+model CanvasNode {
+  id         String  @id @default(cuid())
+  projectId  String
+  type       String
+  positionX  Float
+  positionY  Float
+  properties Json
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model CanvasEdge {
+  id          String  @id @default(cuid())
+  projectId   String
+  sourceNodeId String
+  targetNodeId String
+  label       String?
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}

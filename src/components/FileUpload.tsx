@@ -3,12 +3,11 @@
 // Small uploader component that validates the selected file and forwards only valid PDF uploads.
 import { useRef } from 'react';
 import { UploadCloud } from 'lucide-react';
+import { MAX_FILE_SIZE, MAX_FILE_SIZE_MB } from '@/lib/upload-limits';
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
 }
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 export default function FileUpload({
   onFileSelect,
@@ -31,7 +30,7 @@ export default function FileUpload({
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      alert('The PDF must be 10 MB or smaller.');
+      alert(`The PDF must be ${MAX_FILE_SIZE_MB} MB or smaller.`);
       e.target.value = '';
       return;
     }
@@ -62,7 +61,7 @@ export default function FileUpload({
       </h3>
 
       <p className="text-sm text-gray-500 mb-6">
-        PDF documents only (max 10 MB)
+        PDF documents only (max {MAX_FILE_SIZE_MB} MB)
       </p>
 
       <button

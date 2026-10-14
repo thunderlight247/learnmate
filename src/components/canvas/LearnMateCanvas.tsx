@@ -1,0 +1,265 @@
+'use client';
+
+// Phase 6 Step 5: the main LearnMate canvas wrapper.
+//
+// Owns the interactive xyflow state (useNodesState/useEdgesState), runs the
+// dagre auto-layout on mount (and whenever the blueprint changes or the
+// user clicks "Auto-layout"), and renders the ReactFlow surface with
+// Background, Controls, and MiniMap. ProjectCanvas composes this with the
+// bill-of-materials panel.
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Background,
+  Controls,
+  MiniMap,
+  ReactFlow,
+  useEdgesState,
+  useNodesState,
+  type EdgeChange,
+  type NodeChange,
+  type NodeTypes,
+  type OnNodeDrag,
+  type ReactFlowInstance,
+} from '@xyflow/react';
+import { Sparkles, LayoutTemplate, Check, Loader2, AlertCircle, Maximize2 } from 'lucide-react';
+import '@xyflow/react/dist/style.css';
+import HardwareNode from './HardwareNode';
+import { computeFlowLayout } from '@/lib/canvas/layout';
+import {
+  toFlowEdge,
+  toFlowNode,
+  type BlueprintEdge,
+  type HardwareNode as HardwareNodeType,
+  type ProjectGenerationResponse,
+} from '@/types/canvas';
+
+const nodeTypes: NodeTypes = { hardware: HardwareNode };
+
+type Project = ProjectGenerationResponse['project'];
+
+interface LearnMateCanvasProps {
+  project: Project;
+  selectedNodeId?: string | null;
+  onSelectNode?: (node: HardwareNodeType | null) => void;
+}
+
+export default function LearnMateCanvas({
+  project,
+  selectedNodeId,
+  onSelectNode,
+}: LearnMateCanvasProps) {
+  // Initial nodes use the AI's persisted grid positions...
+  const initialNodes = useMemo<HardwareNodeType[]>(
+    () => project.nodes.map(toFlowNode),
+    [project.nodes],
+  );
+  const initialEdges = useMemo<BlueprintEdge[]>(
+    () => project.edges.map(toFlowEdge),
+    [project.edges],
+  );
+
+  // ...while the dagre layout replaces them for the default view.
+  const laidOutNodes = useMemo<HardwareNodeType[]>(() => {
+    const positions = computeFlowLayout(initialNodes, initialEdges);
+    return initialNodes.map((node) => {
+      const position = positions.get(node.id);
+      return position ? { ...node, position } : node;
+    });
+  }, [initialNodes, initialEdges]);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(laidOutNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  const rfInstanceRef = useRef<ReactFlowInstance<HardwareNodeType, BlueprintEdge> | null>(null);
+  const lastCenteredIdRef = useRef<string | null>(null);
+
+  // Sync selected state into nodes when selectedNodeId changes
+  useEffect(() => {
+    setNodes((current) =>
+      current.map((n) => {
+        const isSelected = n.id === selectedNodeId;
+        return n.selected !== isSelected ? { ...n, selected: isSelected } : n;
+      }),
+    );
+
+    if (selectedNodeId && selectedNodeId !== lastCenteredIdRef.current && rfInstanceRef.current) {
+      lastCenteredIdRef.current = selectedNodeId;
+      const target = nodes.find((n) => n.id === selectedNodeId);
+      if (target) {
+        rfInstanceRef.current.setCenter(
+          target.position.x + 115,
+          target.position.y + 75,
+          { zoom: 1.15, duration: 500 },
+        );
+      }
+    } else if (!selectedNodeId) {
+      lastCenteredIdRef.current = null;
+    }
+  }, [selectedNodeId, setNodes, nodes]);
+
+  // Re-seed xyflow state whenever the underlying blueprint changes
+  // (new generation, layout toggle, or manual re-layout).
+  useEffect(() => {
+    setNodes(laidOutNodes);
+    setEdges(initialEdges);
+  }, [laidOutNodes, initialEdges, setNodes, setEdges]);
+
+  const handleNodesChange = useCallback(
+    (changes: NodeChange<HardwareNodeType>[]) => onNodesChange(changes),
+    [onNodesChange],
+  );
+
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange<BlueprintEdge>[]) => onEdgesChange(changes),
+    [onEdgesChange],
+  );
+
+  // Persists current coordinates to the database so dragged positions stick
+  const persistCoordinates = useCallback(async (nodesToPersist: HardwareNodeType[]) => {
+    try {
+      setSaveStatus('saving');
+      const response = await fetch('/api/projects/nodes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nodes: nodesToPersist.map((n) => ({
+            id: n.id,
+            positionX: Math.round(n.position.x),
+            positionY: Math.round(n.position.y),
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to persist node coordinates');
+      }
+
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (err) {
+      console.error('Error saving node coordinates:', err);
+      setSaveStatus('error');
+    }
+  }, []);
+
+  const handleNodeDragStop: OnNodeDrag<HardwareNodeType> = useCallback(
+    (_event, _node) => {
+      // Persist all current node coordinates on drag release
+      persistCoordinates(nodes);
+    },
+    [nodes, persistCoordinates],
+  );
+
+  const handleAutoLayout = useCallback(() => {
+    const positions = computeFlowLayout(nodes, edges);
+    const updated = nodes.map((node) => {
+      const position = positions.get(node.id);
+      return position ? { ...node, position } : node;
+    });
+    setNodes(updated);
+    persistCoordinates(updated);
+  }, [nodes, edges, setNodes, persistCoordinates]);
+
+  const [showLayouted, setShowLayouted] = useState(true);
+
+  const toggleLayout = useCallback(() => {
+    setShowLayouted((value) => {
+      const next = !value;
+      if (next) {
+        // Returning to the auto-layout view: re-run dagre over the
+        // blueprint records rather than restoring stale positions.
+        const positions = computeFlowLayout(initialNodes, initialEdges);
+        const updated = initialNodes.map((node) => {
+          const position = positions.get(node.id);
+          return position ? { ...node, position } : node;
+        });
+        setNodes(updated);
+        persistCoordinates(updated);
+      } else {
+        setNodes(initialNodes);
+        persistCoordinates(initialNodes);
+      }
+      return next;
+    });
+  }, [initialNodes, initialEdges, setNodes, persistCoordinates]);
+
+  return (
+    <div className="relative h-full w-full overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={handleNodesChange}
+        onEdgesChange={handleEdgesChange}
+        onNodeDragStop={handleNodeDragStop}
+        onNodeClick={(_event, node) => onSelectNode?.(node as HardwareNodeType)}
+        onPaneClick={() => onSelectNode?.(null)}
+        onInit={(instance) => {
+          rfInstanceRef.current = instance;
+        }}
+        nodeTypes={nodeTypes}
+        fitView
+        fitViewOptions={{ padding: 0.2 }}
+        minZoom={0.2}
+        proOptions={{ hideAttribution: true }}
+      >
+        <Background gap={16} />
+        <Controls />
+        <MiniMap pannable zoomable />
+      </ReactFlow>
+
+      {/* Coordinate Save Status Indicator */}
+      {saveStatus !== 'idle' && (
+        <div className="absolute left-3 top-3 z-10">
+          {saveStatus === 'saving' && (
+            <span className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white/95 px-2.5 py-1 text-xs font-medium text-blue-600 shadow-sm backdrop-blur-sm">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Saving layout...
+            </span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="flex items-center gap-1.5 rounded-lg border border-green-200 bg-white/95 px-2.5 py-1 text-xs font-medium text-green-700 shadow-sm backdrop-blur-sm">
+              <Check className="h-3 w-3 text-green-600" />
+              Layout saved
+            </span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white/95 px-2.5 py-1 text-xs font-medium text-red-600 shadow-sm backdrop-blur-sm">
+              <AlertCircle className="h-3 w-3 text-red-500" />
+              Save failed
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Layout Toolbar */}
+      <div className="absolute right-3 top-3 z-10 flex flex-col gap-1.5">
+        <button
+          type="button"
+          onClick={() => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 400 })}
+          className="flex items-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+        >
+          <Maximize2 className="mr-1.5 h-3.5 w-3.5 text-gray-500" />
+          Fit view
+        </button>
+        <button
+          type="button"
+          onClick={handleAutoLayout}
+          className="flex items-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+        >
+          <LayoutTemplate className="mr-1.5 h-3.5 w-3.5 text-gray-500" />
+          Auto-layout
+        </button>
+        <button
+          type="button"
+          onClick={toggleLayout}
+          className="flex items-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+        >
+          <Sparkles className="mr-1.5 h-3.5 w-3.5 text-blue-500" />
+          {showLayouted ? 'Show AI layout' : 'Show auto-layout'}
+        </button>
+      </div>
+    </div>
+  );
+}

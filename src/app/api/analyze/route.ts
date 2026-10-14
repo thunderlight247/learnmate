@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdfExtractor';
 import { callOpenRouter } from '@/lib/openrouter';
+import { MAX_FILE_SIZE, MAX_FILE_SIZE_MB } from '@/lib/upload-limits';
 
 // Request contract: multipart/form-data with a PDF file under the field name "file".
 // The route extracts the document text, keeps it within a safe token budget, and asks
 // the LLM to return a structured summary payload that the UI can render.
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_TEXT_LENGTH = 25000;
 
 export async function POST(request: Request) {
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         {
-          error: 'The PDF must be 10 MB or smaller.',
+          error: `The PDF must be ${MAX_FILE_SIZE_MB} MB or smaller.`,
         },
         { status: 400 },
       );
