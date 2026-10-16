@@ -16,3 +16,18 @@ if (typeof (Math as unknown as { sumPrecise?: unknown }).sumPrecise !== 'functio
     configurable: true,
   });
 }
+
+// DNS resolution fix for Linux Node.js runtimes:
+// Node 18+ undici fetch tries IPv6 first by default. If the network interface
+// has unroutable IPv6, it causes a 20-30 second delay or ETIMEDOUT on external API calls.
+// Setting ipv4first makes external fetch calls (OpenRouter) instant.
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const dns = require('node:dns');
+  if (typeof dns?.setDefaultResultOrder === 'function') {
+    dns.setDefaultResultOrder('ipv4first');
+  }
+} catch {
+  // Ignore in browser or environments without node:dns
+}
+

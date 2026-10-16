@@ -20,6 +20,7 @@ export default function Workspace() {
   const [error, setError] = useState<string | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [ragError, setRagError] = useState<boolean>(false);
+  const [isIndexingRag, setIsIndexingRag] = useState<boolean>(false);
   const [pendingProjectTopic, setPendingProjectTopic] = useState<string | null>(null);
 
   // Called from SummaryTab when a learner clicks "Build a Project" on a concept
@@ -65,21 +66,36 @@ export default function Workspace() {
   const handleFileSelect = async (selectedFile: File) => {
     setFile(selectedFile);
     setIsProcessing(true);
+    setIsIndexingRag(true);
     setError(null);
     setRagError(false);
     setAnalysis(null);
+    setWorkspaceId(null);
     setActiveTab('summary');
 
+    // Trigger vector RAG embedding concurrently in the background
+    ensureProcessedDocument(selectedFile)
+      .then((wsId) => {
+        if (wsId) {
+          setWorkspaceId(wsId);
+        } else {
+          setRagError(true);
+        }
+      })
+      .catch((err) => {
+        console.error('Background RAG indexing failed:', err);
+        setRagError(true);
+      })
+      .finally(() => {
+        setIsIndexingRag(false);
+      });
+
+    // Execute document analysis immediately so student sees summary fast
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      // Execute document analysis and RAG embedding processing concurrently
-      const [analysisRes, wsId] = await Promise.all([
-        fetch('/api/analyze', { method: 'POST', body: formData }),
-        ensureProcessedDocument(selectedFile),
-      ]);
-
+      const analysisRes = await fetch('/api/analyze', { method: 'POST', body: formData });
       const data = await analysisRes.json();
 
       if (!analysisRes.ok) {
@@ -88,12 +104,6 @@ export default function Workspace() {
 
       setAnalysis(data.data);
       setRawText(data.rawText);
-
-      if (wsId) {
-        setWorkspaceId(wsId);
-      } else {
-        setRagError(true);
-      }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'An unexpected error occurred.';
       setError(errorMsg);
@@ -107,11 +117,16 @@ export default function Workspace() {
   const handleRetryRag = async () => {
     if (!file) return;
     setRagError(false);
-    const wsId = await ensureProcessedDocument(file);
-    if (wsId) {
-      setWorkspaceId(wsId);
-    } else {
-      setRagError(true);
+    setIsIndexingRag(true);
+    try {
+      const wsId = await ensureProcessedDocument(file);
+      if (wsId) {
+        setWorkspaceId(wsId);
+      } else {
+        setRagError(true);
+      }
+    } finally {
+      setIsIndexingRag(false);
     }
   };
 
@@ -122,6 +137,7 @@ export default function Workspace() {
     setError(null);
     setWorkspaceId(null);
     setRagError(false);
+    setIsIndexingRag(false);
   };
 
   return (
@@ -170,18 +186,27 @@ export default function Workspace() {
                   </button>
                 </div>
               ) : analysis ? (
-                <div className="flex flex-col items-center">
-                  <p className="text-sm text-green-600 mt-2 font-medium bg-green-50 px-3 py-1 rounded-full border border-green-200">
+                <div className="flex flex-col items-center gap-2 mt-2">
+                  <p className="text-sm text-green-600 font-medium bg-green-50 px-3 py-1 rounded-full border border-green-200">
                     Analysis Complete
                   </p>
-                  {ragError && (
+                  {isIndexingRag ? (
+                    <div className="flex items-center gap-1.5 text-xs text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100 animate-pulse font-medium">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span>Indexing System Studio Graph...</span>
+                    </div>
+                  ) : ragError ? (
                     <button
                       onClick={handleRetryRag}
-                      className="mt-2 text-xs text-amber-600 hover:underline flex items-center gap-1 font-medium"
+                      className="text-xs text-amber-600 hover:underline flex items-center gap-1 font-medium"
                     >
                       <RefreshCw className="h-3 w-3" /> Retry Projects RAG Indexing
                     </button>
-                  )}
+                  ) : workspaceId ? (
+                    <span className="text-[11px] text-gray-500 font-medium">
+                      ✓ System Studio Ready
+                    </span>
+                  ) : null}
                 </div>
               ) : null}
 

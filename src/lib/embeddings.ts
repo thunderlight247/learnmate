@@ -4,6 +4,7 @@
 // since Prisma's typed client cannot write the unsupported `vector(1536)`
 // column type directly.
 
+import '@/lib/polyfills';
 import { prisma } from '@/lib/prisma';
 
 const OPENROUTER_EMBEDDINGS_URL = 'https://openrouter.ai/api/v1/embeddings';

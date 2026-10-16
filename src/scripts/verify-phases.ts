@@ -1,4 +1,5 @@
 // End-to-end backend verification for LearnMate Phases 1-5.
+import '@/lib/polyfills';
 //
 // Run from the learnmate/ directory:
 //   npx tsx src/scripts/verify-phases.ts
