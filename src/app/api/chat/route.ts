@@ -8,7 +8,8 @@
 // before the frontend migrates.
 
 import { NextResponse } from 'next/server';
-import { callOpenRouterMessages, type ChatMessage } from '@/lib/openrouter';
+import { callAiWithFallback, type ChatMessage } from '@/lib/aiClient';
+import { contentCacheKey } from '@/lib/cache';
 import { searchSimilarChunks, type SimilarChunk } from '@/lib/embeddings';
 
 const MAX_HISTORY_MESSAGES = 10;
@@ -111,12 +112,18 @@ Document Context:
 ${body.context}
 `.trim();
 
-      const answer = await callOpenRouterMessages([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: body.question },
-      ]);
+      // Identical question + context are served from cache instead of
+      // spending tokens on a duplicate LLM call.
+      const { content: answer, provider: providerUsed } = await callAiWithFallback({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: body.question },
+        ],
+        complexity: 'simple',
+        cacheKey: contentCacheKey('chat:legacy', `${body.question}\n---\n${body.context}`),
+      });
 
-      return NextResponse.json({ answer });
+      return NextResponse.json({ answer, providerUsed });
     }
 
     const parsed = parseChatRequest(body);
@@ -131,10 +138,11 @@ ${body.context}
       );
     }
 
+    // Strict retrieval budget: at most 4 chunks per prompt (token bloat cap).
     const chunks = await searchSimilarChunks(
       parsed.message,
       parsed.workspaceId,
-      5,
+      4,
     );
 
     if (chunks.length === 0) {
@@ -157,10 +165,17 @@ ${body.context}
       { role: 'user', content: parsed.message },
     ];
 
-    const response = await callOpenRouterMessages(messages);
+    const { content: response, provider: providerUsed } = await callAiWithFallback({
+      messages,
+      complexity: 'simple',
+      // Keyed on the full exchange (question + history + retrieved context):
+      // asking the same question again with the same context hits the cache.
+      cacheKey: contentCacheKey('chat:rag', JSON.stringify(messages)),
+    });
 
     return NextResponse.json({
       response,
+      providerUsed,
       sources: chunks.map((chunk) => ({
         documentId: chunk.documentId,
         content: chunk.content,

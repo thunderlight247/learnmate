@@ -188,6 +188,13 @@ export interface SimilarChunk {
 }
 
 /**
+ * Strict retrieval budget for every prompt building on vector search.
+ * The SQL LIMIT below can never exceed this: 4 passages ground an answer
+ * well while leaving the model's token budget for the answer itself.
+ */
+export const MAX_RETRIEVED_CHUNKS = 4;
+
+/**
  * Finds the document chunks in a workspace that are semantically closest
  * to the query, using pgvector's cosine-distance operator (`<=>`).
  *
@@ -198,14 +205,15 @@ export interface SimilarChunk {
  * @param query - The natural-language search query.
  * @param workspaceId - Only chunks belonging to Documents in this
  * workspace are considered.
- * @param limit - Maximum number of chunks to return.
+ * @param limit - Maximum number of chunks to return. Clamped to
+ * `MAX_RETRIEVED_CHUNKS` so prompts never receive more than 4 passages.
  * @returns The closest chunks, best match first.
  * @throws Error if the query embedding cannot be generated.
  */
 export async function searchSimilarChunks(
   query: string,
   workspaceId: string,
-  limit: number = 5,
+  limit: number = MAX_RETRIEVED_CHUNKS,
 ): Promise<SimilarChunk[]> {
   const trimmed = query.trim();
 
@@ -225,7 +233,7 @@ export async function searchSimilarChunks(
      LIMIT $3`,
     toPgVectorLiteral(embedding),
     workspaceId,
-    Math.floor(Math.min(limit, 50)),
+    Math.floor(Math.min(limit, MAX_RETRIEVED_CHUNKS)),
   );
 
   return rows;

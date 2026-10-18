@@ -22,7 +22,7 @@ import {
   type OnNodeDrag,
   type ReactFlowInstance,
 } from '@xyflow/react';
-import { Sparkles, LayoutTemplate, Check, Loader2, AlertCircle, Maximize2 } from 'lucide-react';
+import { Sparkles, LayoutTemplate, Check, Loader2, AlertCircle, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import '@xyflow/react/dist/style.css';
 import HardwareNode from './HardwareNode';
 import { computeFlowLayout } from '@/lib/canvas/layout';
@@ -74,30 +74,38 @@ export default function LearnMateCanvas({
 
   const rfInstanceRef = useRef<ReactFlowInstance<HardwareNodeType, BlueprintEdge> | null>(null);
   const lastCenteredIdRef = useRef<string | null>(null);
+  const nodesRef = useRef<HardwareNodeType[]>(nodes);
+  nodesRef.current = nodes;
 
-  // Sync selected state into nodes when selectedNodeId changes
+  // Sync selected state into nodes when selectedNodeId changes (loop-free)
   useEffect(() => {
-    setNodes((current) =>
-      current.map((n) => {
+    setNodes((current) => {
+      let changed = false;
+      const next = current.map((n) => {
         const isSelected = n.id === selectedNodeId;
-        return n.selected !== isSelected ? { ...n, selected: isSelected } : n;
-      }),
-    );
+        if (n.selected !== isSelected) {
+          changed = true;
+          return { ...n, selected: isSelected };
+        }
+        return n;
+      });
+      return changed ? next : current;
+    });
 
     if (selectedNodeId && selectedNodeId !== lastCenteredIdRef.current && rfInstanceRef.current) {
       lastCenteredIdRef.current = selectedNodeId;
-      const target = nodes.find((n) => n.id === selectedNodeId);
+      const target = nodesRef.current.find((n) => n.id === selectedNodeId);
       if (target) {
         rfInstanceRef.current.setCenter(
-          target.position.x + 115,
-          target.position.y + 75,
-          { zoom: 1.15, duration: 500 },
+          target.position.x + 135,
+          target.position.y + 85,
+          { zoom: 1.2, duration: 400 },
         );
       }
     } else if (!selectedNodeId) {
       lastCenteredIdRef.current = null;
     }
-  }, [selectedNodeId, setNodes, nodes]);
+  }, [selectedNodeId, setNodes]);
 
   // Re-seed xyflow state whenever the underlying blueprint changes
   // (new generation, layout toggle, or manual re-layout).
@@ -200,12 +208,13 @@ export default function LearnMateCanvas({
         }}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.2}
+        fitViewOptions={{ padding: 0.12, maxZoom: 1.15 }}
+        minZoom={0.15}
+        maxZoom={2.5}
         proOptions={{ hideAttribution: true }}
       >
         <Background gap={16} />
-        <Controls />
+        <Controls showInteractive={false} />
         <MiniMap pannable zoomable />
       </ReactFlow>
 
@@ -233,20 +242,38 @@ export default function LearnMateCanvas({
         </div>
       )}
 
-      {/* Layout Toolbar */}
-      <div className="absolute right-3 top-3 z-10 flex flex-col gap-1.5">
-        <button
-          type="button"
-          onClick={() => rfInstanceRef.current?.fitView({ padding: 0.2, duration: 400 })}
-          className="flex items-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
-        >
-          <Maximize2 className="mr-1.5 h-3.5 w-3.5 text-gray-500" />
-          Fit view
-        </button>
+      {/* Layout & Zoom Toolbar */}
+      <div className="absolute right-3 top-3 z-10 flex flex-col gap-1 rounded-xl border border-gray-200/90 bg-white/95 p-1 shadow-md backdrop-blur-sm">
+        <div className="flex items-center justify-between border-b border-gray-100 pb-1 px-1">
+          <button
+            type="button"
+            title="Zoom In"
+            onClick={() => rfInstanceRef.current?.zoomIn({ duration: 300 })}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-700 transition hover:bg-gray-100 hover:text-blue-600"
+          >
+            <ZoomIn className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            title="Zoom Out"
+            onClick={() => rfInstanceRef.current?.zoomOut({ duration: 300 })}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-700 transition hover:bg-gray-100 hover:text-blue-600"
+          >
+            <ZoomOut className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            title="Fit view"
+            onClick={() => rfInstanceRef.current?.fitView({ padding: 0.12, duration: 400 })}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-700 transition hover:bg-gray-100 hover:text-blue-600"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
         <button
           type="button"
           onClick={handleAutoLayout}
-          className="flex items-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+          className="flex items-center rounded-lg px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
         >
           <LayoutTemplate className="mr-1.5 h-3.5 w-3.5 text-gray-500" />
           Auto-layout
@@ -254,10 +281,10 @@ export default function LearnMateCanvas({
         <button
           type="button"
           onClick={toggleLayout}
-          className="flex items-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+          className="flex items-center rounded-lg px-2.5 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
         >
           <Sparkles className="mr-1.5 h-3.5 w-3.5 text-blue-500" />
-          {showLayouted ? 'Show AI layout' : 'Show auto-layout'}
+          {showLayouted ? 'AI layout' : 'Flow layout'}
         </button>
       </div>
     </div>

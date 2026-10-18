@@ -5,7 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { callOpenRouter } from '@/lib/openrouter';
+import { callAiWithFallback } from '@/lib/aiClient';
 
 const DEFAULT_COUNT = 5;
 const MAX_COUNT = 20;
@@ -134,10 +134,19 @@ export async function POST(request: Request) {
       );
     }
 
-    const aiResponse = await callOpenRouter(
-      systemPrompt,
-      `Generate exactly ${requestedCount} flashcards from this lecture material:\n\n${context}`,
-    );
+    // Flashcards are a lightweight structured task: route on the fast/cheap
+    // model tier. Deliberately NOT cached — every generation creates fresh
+    // Flashcard rows, so a cached payload would silently duplicate cards.
+    const { content: aiResponse, provider: providerUsed } = await callAiWithFallback({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: `Generate exactly ${requestedCount} flashcards from this lecture material:\n\n${context}`,
+        },
+      ],
+      complexity: 'simple',
+    });
 
     let flashcards: GeneratedFlashcard[];
 
@@ -168,6 +177,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
+      providerUsed,
       flashcards: created,
       count: created.length,
     });

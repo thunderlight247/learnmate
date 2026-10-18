@@ -5,7 +5,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { searchSimilarChunks } from '@/lib/embeddings';
-import { callOpenRouter } from '@/lib/openrouter';
+import { callAiWithFallback } from '@/lib/aiClient';
+import { contentCacheKey } from '@/lib/cache';
 
 export interface LabStep {
   stepNumber: number;
@@ -224,7 +225,17 @@ ${context || 'No specific textbook passages retrieved; generate a sound multidis
 Create a rigorous, step-by-step hands-on laboratory build protocol for this topic.
 `.trim();
 
-      const aiResponse = await callOpenRouter(LAB_SYSTEM_PROMPT, userPrompt);
+      // Lab protocols describe interactive canvas builds: complex tier +
+      // cached so regenerating for an identical project/mode doesn't
+      // re-run the expensive high-reasoning model.
+      const { content: aiResponse, provider: providerUsed } = await callAiWithFallback({
+        messages: [
+          { role: 'system', content: LAB_SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+        complexity: 'complex',
+        cacheKey: contentCacheKey(`lab:${workspaceId}:${mode}`, userPrompt),
+      });
       const cleaned = aiResponse
         .replace(/^```json\s*/i, '')
         .replace(/^```\s*/i, '')
@@ -234,7 +245,7 @@ Create a rigorous, step-by-step hands-on laboratory build protocol for this topi
       const parsed = JSON.parse(cleaned) as HandsOnLabProtocol;
 
       if (parsed && typeof parsed.title === 'string' && Array.isArray(parsed.steps)) {
-        return NextResponse.json({ success: true, lab: parsed });
+        return NextResponse.json({ success: true, providerUsed, lab: parsed });
       }
     } catch (aiErr) {
       console.warn('AI lab generation failed or timed out, using fallback synthesizer:', aiErr);
@@ -242,7 +253,7 @@ Create a rigorous, step-by-step hands-on laboratory build protocol for this topi
 
     // High quality pedagogical fallback
     const fallback = buildFallbackLabProtocol(topicQuery, componentsList);
-    return NextResponse.json({ success: true, lab: fallback });
+    return NextResponse.json({ success: true, providerUsed: 'fallback', lab: fallback });
   } catch (error: unknown) {
     console.error('Hands-on Lab API Error:', error);
     const message = error instanceof Error ? error.message : 'Failed to generate hands-on lab protocol.';

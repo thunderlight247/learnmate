@@ -15,13 +15,13 @@ import type {
   HardwareNode,
 } from '@/types/canvas';
 
-/** Rendered node size — keep in sync with HardwareNode's CSS. */
-export const NODE_WIDTH = 220;
-export const NODE_HEIGHT = 96;
+/** Rendered node size — matches HardwareNode's expanded CSS for clear readability. */
+export const NODE_WIDTH = 270;
+export const NODE_HEIGHT = 160;
 
 const RANK_DIRECTION = 'LR'; // left-to-right: sources feed rightward into targets
-const NODE_SEPARATION = 60;
-const RANK_SEPARATION = 90;
+const NODE_SEPARATION = 70;
+const RANK_SEPARATION = 110;
 
 function runDagre(
   graphNodes: { id: string }[],

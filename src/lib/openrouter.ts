@@ -29,6 +29,19 @@ export interface OpenRouterOptions {
   model?: string;
   maxTokens?: number;
   temperature?: number;
+  /**
+   * Abort a single model attempt after this many ms. Free models can queue
+   * for a while before they start streaming, so slow-but-valid callers
+   * (e.g. blueprint generation) raise this above the 35s default.
+   */
+  timeoutMs?: number;
+  /**
+   * Whether `message.reasoning` may stand in for an empty `content`.
+   * Reasoning is a thinking trace, not the answer: JSON-producing callers
+   * disable this so a half-finished chain of thought is never parsed as the
+   * payload. Defaults to true for prose callers.
+   */
+  useReasoningFallback?: boolean;
 }
 
 /** Backup free models to try in sequence if the primary model fails or times out. */
@@ -44,9 +57,11 @@ async function callSingleModel(
   apiKey: string,
   maxTokens: number,
   temperature: number,
+  timeoutMs: number,
+  useReasoningFallback: boolean,
 ): Promise<string> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 35000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(OPENROUTER_API_URL, {
@@ -92,8 +107,15 @@ async function callSingleModel(
 
     const data = (await response.json()) as OpenRouterResponse;
     const msg = data.choices?.[0]?.message;
-    // Prefer content; if null/empty, check reasoning
-    const content = msg?.content || msg?.reasoning;
+    // Prefer content; if it is empty, reasoning models sometimes put the
+    // final answer in `reasoning`. Callers that parse JSON opt out (see
+    // OpenRouterOptions.useReasoningFallback) because a truncated thinking
+    // trace would otherwise be handed over as if it were the answer.
+    const content = msg?.content?.trim()
+      ? msg.content
+      : useReasoningFallback
+        ? msg?.reasoning
+        : '';
 
     if (!content || !content.trim()) {
       throw new Error('OpenRouter API returned no usable content.');
@@ -134,6 +156,8 @@ export async function callOpenRouterMessages(
       : 3000);
 
   const temperature = options?.temperature ?? 0.3;
+  const timeoutMs = options?.timeoutMs ?? 35000;
+  const useReasoningFallback = options?.useReasoningFallback ?? true;
 
   // Build model try-list: primary first, followed by fallbacks (deduped)
   const candidateModels = [
@@ -141,9 +165,19 @@ export async function callOpenRouterMessages(
     ...FALLBACK_FREE_MODELS.filter((m) => m !== primaryModel),
   ];
 
+  const isFreeModel = (m: string): boolean =>
+    m === 'openrouter/free' || m.includes(':free');
+
   let lastError: unknown;
+  let creditsExhausted = false;
 
   for (const modelToTry of candidateModels) {
+    // Credits only gate paid models. When the balance runs out, skip the
+    // remaining paid candidates but keep trying the free fallbacks — the
+    // whole point of this list is to degrade to them instead of failing.
+    if (creditsExhausted && !isFreeModel(modelToTry)) {
+      continue;
+    }
     try {
       return await callSingleModel(
         modelToTry,
@@ -151,14 +185,15 @@ export async function callOpenRouterMessages(
         apiKey,
         maxTokens,
         temperature,
+        timeoutMs,
+        useReasoningFallback,
       );
     } catch (err: unknown) {
       lastError = err;
       const errMsg = err instanceof Error ? err.message : String(err);
       console.warn(`[OpenRouter] Model ${modelToTry} failed: ${errMsg}. Trying fallback...`);
-      // If error was an explicit credit limit (402), don't retry paid models
       if (errMsg.includes('credits limit reached')) {
-        break;
+        creditsExhausted = true;
       }
     }
   }

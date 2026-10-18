@@ -3,10 +3,49 @@
 // Retrieval + OpenRouter + transactional persistence in one callable unit.
 
 import type { Prisma, PrismaClient } from '@prisma/client';
+import { getAiModelForComplexity } from '@/lib/aiClient';
 import { searchSimilarChunks } from '@/lib/embeddings';
 import { callOpenRouter } from '@/lib/openrouter';
 
-export const CONTEXT_CHUNKS = 6;
+/**
+ * Strict retrieval budget: the blueprint prompt gets at most 4 context
+ * chunks (pgvector search is capped at MAX_RETRIEVED_CHUNKS) so grounding
+ * context never bloats the token budget needed for the JSON output.
+ */
+export const CONTEXT_CHUNKS = 4;
+
+/** Fresh AI attempts before a failure is surfaced to the user. */
+const BLUEPRINT_ATTEMPTS = 3;
+
+/**
+ * Per-attempt timeout. Free models often queue 40-90s before they start
+ * streaming; the 35s default aborted them mid-generation and handed the
+ * request to weaker fallbacks, which is what produced most invalid output.
+ */
+const BLUEPRINT_TIMEOUT_MS = 90_000;
+
+/**
+ * Output cap. Reasoning models can burn 2.5k+ tokens thinking before they
+ * write a single character of JSON, so 4000 left the object itself cut off.
+ */
+const BLUEPRINT_MAX_TOKENS = 6000;
+
+/**
+ * Blueprint/canvas generation is the app's heaviest structured task, so it
+ * routes on the high-reasoning model tier. Retries rotate to different
+ * free models in case the first sample returns unusable output.
+ */
+const BLUEPRINT_RETRY_MODELS: string[] = Array.from(
+  new Set([
+    getAiModelForComplexity('complex').openrouter,
+    'nvidia/nemotron-3.5-super-vl:free',
+    'liquid/lfm-2.5-2.6b:free',
+  ]),
+);
+
+/** Appended to the user prompt on retries after malformed output. */
+const BLUEPRINT_RETRY_REMINDER =
+  'REMINDER: Output ONLY the raw JSON object described above — no commentary, no Markdown fences, no text before or after the object.';
 
 export interface BlueprintBomItem {
   item: string;
@@ -119,34 +158,25 @@ Rules:
 6. Return valid JSON only.
 `.trim();
 
-/**
- * Best-effort repair for JSON truncated when max_tokens is hit.
- * Closes unclosed strings, arrays, and objects so JSON.parse can
- * recover the nodes that were already emitted.
- */
-function repairTruncatedJson(s: string): string {
-  try { JSON.parse(s); return s; } catch { /* fall through to repair */ }
-
-  let result = s.trimEnd();
-
-  // Close unclosed string literal
+/** Closes a string literal left open when the stream was cut mid-value. */
+function closeDanglingQuote(s: string): string {
   let inString = false;
   let escaped = false;
-  for (let i = 0; i < result.length; i++) {
-    const ch = result[i];
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
     if (escaped) { escaped = false; continue; }
     if (ch === '\\') { escaped = true; continue; }
     if (ch === '"') inString = !inString;
   }
-  if (inString) result += '"';
+  return inString ? `${s}"` : s;
+}
 
-  // Strip trailing comma (invalid before closing bracket)
-  result = result.replace(/,\s*$/, '');
-
-  // Close unclosed brackets/braces
+/** Closes every array/object left open when the stream was cut mid-structure. */
+function closeOpenBrackets(s: string): string {
   const stack: string[] = [];
-  inString = false; escaped = false;
-  for (const ch of result) {
+  let inString = false;
+  let escaped = false;
+  for (const ch of s) {
     if (escaped) { escaped = false; continue; }
     if (ch === '\\') { escaped = true; continue; }
     if (ch === '"') { inString = !inString; continue; }
@@ -155,8 +185,66 @@ function repairTruncatedJson(s: string): string {
     else if (ch === '[') stack.push(']');
     else if (ch === '}' || ch === ']') stack.pop();
   }
+  let result = s;
   while (stack.length) result += stack.pop()!;
   return result;
+}
+
+/** Offsets of `,` member separators that sit outside string literals. */
+function memberSeparators(s: string): number[] {
+  const offsets: number[] = [];
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\') { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (!inString && ch === ',') offsets.push(i);
+  }
+  return offsets;
+}
+
+/**
+ * Best-effort repair for JSON truncated when max_tokens is hit.
+ * Closes unclosed strings, arrays, and objects so JSON.parse can
+ * recover the members that were already emitted — and, when a cutoff
+ * stranded a half-written member (`..., "quantity": 1`), steps back to
+ * the previous complete separator so the salvage still parses.
+ */
+function repairTruncatedJson(s: string): string {
+  try { JSON.parse(s); return s; } catch { /* fall through to repair */ }
+
+  const closed = closeOpenBrackets(
+    closeDanglingQuote(s.trimEnd()).replace(/,\s*$/, ''),
+  );
+
+  const candidates = [closed];
+
+  const separators = memberSeparators(closed);
+  for (let i = separators.length - 1; i >= 0 && i >= separators.length - 6; i--) {
+    const prefix = closed.slice(0, separators[i]).replace(/,\s*$/, '');
+    candidates.push(closeOpenBrackets(prefix));
+  }
+
+  for (const candidate of candidates) {
+    try { JSON.parse(candidate); return candidate; } catch { /* try next */ }
+  }
+
+  return closed; // JSON.parse throws on this: closest-to-valid text for logs
+}
+
+/**
+ * Pulls the JSON object out of free-form model output: drops Markdown
+ * fences wherever they appear and keeps only the `{ ... }` span, so prose
+ * like "Here is your blueprint:" around (or before) the object is ignored.
+ */
+function extractJsonObjectText(raw: string): string {
+  const unfenced = raw.replace(/```[a-zA-Z0-9+-]*/g, '');
+  const start = unfenced.indexOf('{');
+  if (start === -1) return unfenced.trim();
+  const end = unfenced.lastIndexOf('}');
+  return unfenced.slice(start, end > start ? end + 1 : undefined).trim();
 }
 
 /**
@@ -169,11 +257,7 @@ function repairTruncatedJson(s: string): string {
  * @throws Error describing exactly what the model got wrong.
  */
 export function parseBlueprint(raw: string): Blueprint {
-  const cleaned = raw
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim();
+  const cleaned = extractJsonObjectText(raw);
 
   // Repair truncated JSON before parsing (max_tokens hit mid-stream)
   const repaired = repairTruncatedJson(cleaned);
@@ -189,18 +273,21 @@ export function parseBlueprint(raw: string): Blueprint {
   if (typeof blueprint.title !== 'string' || !blueprint.title.trim()) {
     throw new Error('AI response is missing a valid "title".');
   }
-  if (!Array.isArray(blueprint.billOfMaterials)) {
-    throw new Error('AI response is missing the "billOfMaterials" array.');
-  }
   if (!Array.isArray(blueprint.nodes) || blueprint.nodes.length === 0) {
     throw new Error('AI response has no "nodes" to build a canvas.');
   }
-  if (!Array.isArray(blueprint.edges)) {
-    throw new Error('AI response is missing the "edges" array.');
-  }
+
+  // A response cut off after its nodes but before these arrays is still a
+  // usable canvas, so tolerate their absence instead of discarding the run.
+  const rawBom: unknown[] = Array.isArray(blueprint.billOfMaterials)
+    ? blueprint.billOfMaterials
+    : [];
+  const rawEdges: unknown[] = Array.isArray(blueprint.edges)
+    ? blueprint.edges
+    : [];
 
   // ── BOM: coerce quantity to number, fill missing fields with defaults ──
-  const normalizedBom: BlueprintBomItem[] = (blueprint.billOfMaterials as unknown[])
+  const normalizedBom: BlueprintBomItem[] = rawBom
     .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
     .map((item) => ({
       item: String(item.item ?? 'Component'),
@@ -251,7 +338,7 @@ export function parseBlueprint(raw: string): Blueprint {
 
   // ── Edges: drop any referencing unknown node ids ──
   const validNodeIds = new Set(dedupedNodes.map((n) => n.id));
-  const normalizedEdges: BlueprintEdge[] = (blueprint.edges as unknown[])
+  const normalizedEdges: BlueprintEdge[] = rawEdges
     .filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null)
     .filter((e) => validNodeIds.has(String(e.source)) && validNodeIds.has(String(e.target)))
     .map((e, i) => ({
@@ -319,18 +406,82 @@ export async function generateBlueprint(
     )
     .join('\n\n---\n\n');
 
-  const aiResponse = await callOpenRouter(
-    blueprintSystemPrompt,
-    buildBlueprintUserPrompt(topic, context),
-    { maxTokens: 4000 },
-  );
+  const userPrompt = buildBlueprintUserPrompt(topic, context);
 
-  let blueprint: Blueprint;
+  // Free models are inconsistent: some answer in `reasoning`, some get cut
+  // off mid-object, some wrap the JSON in prose. Parse failures therefore
+  // trigger a fresh call (rotating model + firmer prompt) instead of failing
+  // the whole request on the first bad sample.
+  let blueprint: Blueprint | null = null;
+  let degraded: Blueprint | null = null;
+  let lastParseError: unknown;
+  let lastCallError: unknown;
+  let lastRaw: string | undefined;
 
-  try {
-    blueprint = parseBlueprint(aiResponse);
-  } catch (error) {
-    console.error('Invalid blueprint JSON from AI:', aiResponse, error);
+  for (let attempt = 0; attempt < BLUEPRINT_ATTEMPTS && !blueprint; attempt++) {
+    const model = BLUEPRINT_RETRY_MODELS[attempt];
+
+    let aiResponse: string;
+    try {
+      aiResponse = await callOpenRouter(
+        blueprintSystemPrompt,
+        attempt === 0 ? userPrompt : `${userPrompt}\n\n${BLUEPRINT_RETRY_REMINDER}`,
+        {
+          maxTokens: BLUEPRINT_MAX_TOKENS,
+          timeoutMs: BLUEPRINT_TIMEOUT_MS,
+          // A thinking trace is never the blueprint; fail the attempt so the
+          // fallback chain can move to the next model instead.
+          useReasoningFallback: false,
+          ...(model ? { model } : {}),
+        },
+      );
+    } catch (error) {
+      lastCallError = error;
+      console.warn(
+        `[blueprint] AI call failed (attempt ${attempt + 1}/${BLUEPRINT_ATTEMPTS}):`,
+        error instanceof Error ? error.message : error,
+      );
+      continue;
+    }
+
+    lastRaw = aiResponse;
+    try {
+      const parsed = parseBlueprint(aiResponse);
+      if (parsed.edges.length > 0) {
+        blueprint = parsed;
+        break;
+      }
+      // A canvas without a single wire is a degraded graph (usually an
+      // output truncated right after the nodes). Keep it as a fallback and
+      // spend another attempt chasing a fully-wired schematic.
+      degraded ??= parsed;
+      console.warn(
+        `[blueprint] sample ${attempt + 1}/${BLUEPRINT_ATTEMPTS} had ${parsed.nodes.length} nodes but no edges; retrying for a wired graph`,
+      );
+    } catch (error) {
+      lastParseError = error;
+      console.error(
+        `[blueprint] Invalid AI output (attempt ${attempt + 1}/${BLUEPRINT_ATTEMPTS}):`,
+        error instanceof Error ? error.message : error,
+        aiResponse.slice(0, 500),
+      );
+    }
+  }
+
+  if (!blueprint) {
+    // A salvageable parse (nodes but no edges) still beats failing the
+    // render: users can draw connections, they just aren't pre-wired.
+    if (degraded) {
+      return persistBlueprint(degraded, workspaceId, prisma);
+    }
+
+    // Transport failures (credits, timeout, missing key) never produced
+    // output to judge, so they keep their own message; only genuinely
+    // malformed output becomes the user-facing error.
+    if (!lastParseError && lastCallError) {
+      throw lastCallError;
+    }
+    console.error('Invalid blueprint JSON from AI:', lastRaw, lastParseError);
     throw new Error('The AI returned an invalid blueprint. Please try again.');
   }
 

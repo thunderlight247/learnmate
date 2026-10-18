@@ -159,35 +159,35 @@ function HardwareNodeComponent({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`relative w-[230px] rounded-xl border-2 bg-white shadow-sm transition-all cursor-pointer ${
+      className={`relative w-[270px] rounded-xl border-2 bg-white shadow-sm transition-all cursor-pointer ${
         style.ring
       } ${
         selected
-          ? 'shadow-xl ring-4 ring-blue-500/30 border-blue-600 scale-[1.03] z-20'
+          ? 'shadow-xl ring-4 ring-blue-500/35 border-blue-600 scale-[1.03] z-20'
           : 'hover:shadow-md hover:border-gray-400'
       }`}
     >
       {selected && (
-        <span className="absolute -top-2.5 right-2 rounded-full bg-blue-600 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow">
+        <span className="absolute -top-3 right-3 rounded-full bg-blue-600 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-md">
           Inspecting
         </span>
       )}
       <Handle
         type="target"
         position={Position.Left}
-        className="!bg-indigo-500 !w-2.5 !h-2.5"
+        className="!bg-indigo-600 !w-3.5 !h-3.5 !border-2 !border-white shadow-sm hover:scale-125 transition-transform"
       />
 
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${style.accent}`}>
-          <Icon className="h-4 w-4" />
+      <div className="flex items-center gap-2.5 px-3.5 py-2.5 border-b border-gray-100">
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg shadow-xs ${style.accent}`}>
+          <Icon className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-gray-900">
+          <p className="truncate text-sm font-bold text-gray-900 leading-snug">
             {nodeData.label}
           </p>
           <span
-            className={`inline-block rounded px-1.5 text-[10px] font-medium uppercase tracking-wide ${style.chip}`}
+            className={`inline-block rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide mt-0.5 ${style.chip}`}
           >
             {nodeData.nodeType}
           </span>
@@ -195,26 +195,26 @@ function HardwareNodeComponent({ data, selected }: NodeProps) {
       </div>
 
       {nodeData.role && (
-        <p className="px-3 pt-1.5 text-[11px] text-gray-600 line-clamp-2 leading-tight">
+        <p className="px-3.5 pt-2 text-xs text-gray-600 line-clamp-2 leading-relaxed font-normal">
           {nodeData.role}
         </p>
       )}
 
       {nodeData.damageEffect && (
-        <div className="mx-2.5 my-1.5 flex items-center gap-1 rounded bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-900 border border-amber-200/60">
-          <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
-          <span className="truncate" title={nodeData.damageEffect}>
-            Failure: {nodeData.damageEffect}
+        <div className="mx-3 my-2 flex items-start gap-1.5 rounded-lg bg-amber-50/90 p-2 text-xs font-medium text-amber-950 border border-amber-200">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 mt-0.5" />
+          <span className="line-clamp-2 leading-tight" title={nodeData.damageEffect}>
+            <strong className="font-semibold text-amber-800">Risk:</strong> {nodeData.damageEffect}
           </span>
         </div>
       )}
 
       {specs.length > 0 && (
-        <dl className="space-y-0.5 px-3 py-1.5 border-t border-gray-50 text-[10px] leading-snug">
+        <dl className="space-y-1 px-3.5 py-2 border-t border-gray-50 text-[11px] leading-snug">
           {specs.map(([key, value]) => (
             <div key={key} className="flex justify-between gap-2">
-              <dt className="shrink-0 text-gray-400">{key}</dt>
-              <dd className="truncate text-right font-medium text-gray-600">
+              <dt className="shrink-0 text-gray-400 capitalize">{key}:</dt>
+              <dd className="truncate text-right font-medium text-gray-700">
                 {value}
               </dd>
             </div>
@@ -222,14 +222,14 @@ function HardwareNodeComponent({ data, selected }: NodeProps) {
         </dl>
       )}
 
-      <div className="px-3 py-1 bg-gray-50/60 rounded-b-xl border-t border-gray-100 text-[10px] text-gray-400 text-center">
-        Click to inspect component
+      <div className="px-3 py-1 bg-gray-50/70 rounded-b-xl border-t border-gray-100 text-[11px] text-gray-400 text-center font-medium">
+        Click to inspect details &amp; flows
       </div>
 
       <Handle
         type="source"
         position={Position.Right}
-        className="!bg-indigo-500 !w-2.5 !h-2.5"
+        className="!bg-indigo-600 !w-3.5 !h-3.5 !border-2 !border-white shadow-sm hover:scale-125 transition-transform"
       />
     </div>
   );

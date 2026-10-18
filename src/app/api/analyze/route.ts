@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdfExtractor';
-import { callOpenRouter } from '@/lib/openrouter';
+import { callAiWithFallback } from '@/lib/aiClient';
+import { contentCacheKey } from '@/lib/cache';
 import { MAX_FILE_SIZE, MAX_FILE_SIZE_MB } from '@/lib/upload-limits';
 
 // Request contract: multipart/form-data with a PDF file under the field name "file".
@@ -99,14 +100,26 @@ Rules:
       importantTopics?: string[];
     } | null = null;
 
-    try {
-      const aiResponse = await callOpenRouter(
-        systemPrompt,
-        safeText,
-      );
+    // Dual gateway: OpenRouter first, DeepSeek as fallback. A throw here
+    // means both providers failed, and the outer catch turns it into the
+    // 500 the UI renders.
+    // Summaries are a simple task on the fast/cheap tier. Keyed by the
+    // SHA-256 of the (budget-capped) document text, so re-analyzing the same
+    // or previously-seen content is served from cache without an LLM call.
+    const { content: aiContent, provider: providerUsed } = await callAiWithFallback({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: safeText },
+      ],
+      maxTokens: 3000,
+      temperature: 0.7,
+      complexity: 'simple',
+      cacheKey: contentCacheKey('analyze:summary', safeText),
+    });
 
+    try {
       // Clean Markdown fences and extract outer JSON object
-      let cleaned = aiResponse
+      let cleaned = aiContent
         .replace(/^```json\s*/i, '')
         .replace(/^```\s*/i, '')
         .replace(/\s*```$/i, '')
@@ -131,8 +144,10 @@ Rules:
           console.warn('[Analyze] JSON parse failed, will use fallback summary');
         }
       }
-    } catch (aiError) {
-      console.warn('[Analyze] AI call failed, generating document summary from text:', aiError);
+    } catch (parseError) {
+      // Providers answered, but the payload was not the JSON shape we asked
+      // for — degrade to a text-derived summary instead of failing the upload.
+      console.warn('[Analyze] JSON parse failed, generating document summary from text:', parseError);
     }
 
     // If AI failed or produced invalid structure, generate clean text extraction fallback
@@ -172,6 +187,7 @@ Rules:
 
     return NextResponse.json({
       success: true,
+      providerUsed,
       data: parsedData,
       rawText: safeText,
     });
