@@ -19,6 +19,8 @@ import {
   Package,
   Layers,
   HelpCircle,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import type { PhysicalLabProtocol } from '@/types/lab';
 
@@ -32,6 +34,25 @@ export default function PhysicalLabWorkbench({ protocol, onSendToNotepad }: Phys
 
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [copiedManual, setCopiedManual] = useState(false);
+  const [activeSpeakingStep, setActiveSpeakingStep] = useState<number | null>(null);
+
+  const toggleSpeechStep = (stepNumber: number, text: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+    if (activeSpeakingStep === stepNumber) {
+      window.speechSynthesis.cancel();
+      setActiveSpeakingStep(null);
+    } else {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.onend = () => setActiveSpeakingStep(null);
+      utterance.onerror = () => setActiveSpeakingStep(null);
+      setActiveSpeakingStep(stepNumber);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
 
   const toggleStep = (stepNumber: number) => {
     setCompletedSteps((prev) =>
@@ -245,6 +266,28 @@ export default function PhysicalLabWorkbench({ protocol, onSendToNotepad }: Phys
                       <h5 className={`text-xs font-bold ${isDone ? 'line-through text-gray-500' : 'text-gray-900'}`}>
                         Step {st.stepNumber}: {st.title}
                       </h5>
+                      <button
+                        type="button"
+                        onClick={(e) =>
+                          toggleSpeechStep(
+                            st.stepNumber,
+                            `Step ${st.stepNumber}: ${st.title}. ${st.instruction} Expected outcome: ${st.expectedOutcome}. ${st.safetyOrCaution ? `Caution: ${st.safetyOrCaution}` : ''}`,
+                            e,
+                          )
+                        }
+                        className={`rounded p-1 transition ${
+                          activeSpeakingStep === st.stepNumber
+                            ? 'bg-indigo-100 text-indigo-700 font-bold animate-pulse'
+                            : 'text-gray-400 hover:text-indigo-600'
+                        }`}
+                        title="Listen to this step hands-free"
+                      >
+                        {activeSpeakingStep === st.stepNumber ? (
+                          <VolumeX className="h-3.5 w-3.5" />
+                        ) : (
+                          <Volume2 className="h-3.5 w-3.5" />
+                        )}
+                      </button>
                     </div>
                     <p className={`text-xs mt-1 leading-relaxed ${isDone ? 'text-gray-500' : 'text-gray-700'}`}>
                       {st.instruction}

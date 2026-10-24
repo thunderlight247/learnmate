@@ -23,6 +23,8 @@ import {
   Info,
   Scale,
   Wrench,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import type { ReasonWithMeResponse } from '@/app/api/reason/route';
 
@@ -45,8 +47,25 @@ export default function ReasonWithMeModal({
   const [isLoading, setIsLoading] = useState(false);
   const [analysis, setAnalysis] = useState<ReasonWithMeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSpeakingVerdict, setIsSpeakingVerdict] = useState(false);
 
   const recognitionRef = useRef<any>(null);
+
+  const toggleSpeakVerdict = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis || !analysis) return;
+    if (isSpeakingVerdict) {
+      window.speechSynthesis.cancel();
+      setIsSpeakingVerdict(false);
+    } else {
+      window.speechSynthesis.cancel();
+      const text = `${analysis.ideaTitle}. Feasibility Verdict: ${analysis.feasibilityVerdict}. ${analysis.scientificRealityCheck.honestVerdictExplanation} Constructive Pathway: ${analysis.constructiveEngineeringPivot}`;
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.onend = () => setIsSpeakingVerdict(false);
+      utterance.onerror = () => setIsSpeakingVerdict(false);
+      setIsSpeakingVerdict(true);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
 
   // Check Web Speech API support
   useEffect(() => {
@@ -302,6 +321,29 @@ export default function ReasonWithMeModal({
                   >
                     {analysis.feasibilityVerdict}
                   </span>
+
+                  <button
+                    type="button"
+                    onClick={toggleSpeakVerdict}
+                    className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
+                      isSpeakingVerdict
+                        ? 'bg-indigo-100 text-indigo-700 border-indigo-300 font-bold animate-pulse'
+                        : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                    }`}
+                    title="Hands-free voice mentorship"
+                  >
+                    {isSpeakingVerdict ? (
+                      <>
+                        <VolumeX className="h-3.5 w-3.5" />
+                        <span>Stop Voice</span>
+                      </>
+                    ) : (
+                      <>
+                        <Volume2 className="h-3.5 w-3.5 text-indigo-600" />
+                        <span>Listen Aloud</span>
+                      </>
+                    )}
+                  </button>
 
                   {onSendToNotepad && (
                     <button

@@ -50,6 +50,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Sliders,
+  Download,
   type LucideIcon,
 } from 'lucide-react';
 import LearnMateCanvas from './LearnMateCanvas';
@@ -293,6 +294,99 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
       fetchLabProtocol(labMode);
     }
   }, [activeTab, labProtocol, loadingLab, fetchLabProtocol, labMode]);
+
+  const handleDownloadFullReport = () => {
+    const lines: string[] = [
+      `# LearnMate Engineering Laboratory Report: ${project.title}`,
+      `Generated on: ${new Date().toLocaleString()}`,
+      '',
+      '## 1. System Overview & Architecture',
+      `- Total Subsystems/Nodes: ${project.nodes.length}`,
+      `- Interconnection Flows: ${project.edges.length}`,
+      '',
+      '### Subsystem Components',
+      ...project.nodes.map((n) => {
+        const p = (n.properties ?? {}) as Record<string, unknown>;
+        return `- **${p.label || n.type}** (${n.type}): ${p.role || 'Active subsystem'}${
+          p.importance ? ` [Importance: ${p.importance}]` : ''
+        }`;
+      }),
+      '',
+      '## 2. Bill of Materials (BOM)',
+      '| Item | Quantity | Description | Estimated Cost |',
+      '|---|---|---|---|',
+      ...bom.map((b) => `| ${b.item} | ${b.quantity ?? 1} | ${b.description || 'N/A'} | ${b.estimatedCost || 'N/A'} |`),
+      '',
+    ];
+
+    if (labProtocol) {
+      lines.push(
+        `## 3. Hands-On Laboratory Protocol (${labProtocol.mode.toUpperCase()})`,
+        `**Title:** ${labProtocol.title}`,
+        `**Objective:** ${labProtocol.objective}`,
+        `**Theoretical Principle:** ${labProtocol.theoreticalPrinciple}`,
+        `**Estimated Duration:** ${labProtocol.estimatedTime}`,
+        `**Difficulty Level:** ${labProtocol.difficulty}`,
+        '',
+      );
+
+      if (labProtocol.mode === 'simulation') {
+        const v = labProtocol as VirtualLabProtocol;
+        lines.push(
+          '### FreeCAD Parametric Macro Script',
+          '```python',
+          v.cadExports.freeCadMacro,
+          '```',
+          '',
+          '### AutoCAD AutoLISP Script',
+          '```lisp',
+          v.cadExports.autoCadScript,
+          '```',
+          '',
+          '### External CAD Software Implementation Steps',
+          ...v.externalSoftwareGuide.steps.map(
+            (s) => `#### Step ${s.stepNumber}: ${s.actionTitle}\n${s.instruction} (${s.softwareFeature})`,
+          ),
+          '',
+        );
+      } else if (labProtocol.mode === 'experiment') {
+        const e = labProtocol as EmpiricalLabProtocol;
+        lines.push(
+          `**Null Hypothesis (H0):** ${e.hypothesisH0}`,
+          `**Alternative Hypothesis (H1):** ${e.hypothesisH1}`,
+          '',
+          '### Scientific Variables',
+          `- Independent: ${e.variableMatrix.independent.name} (${e.variableMatrix.independent.unit})`,
+          `- Dependent: ${e.variableMatrix.dependent.name} (${e.variableMatrix.dependent.unit})`,
+          `- Controlled: ${e.variableMatrix.controlled.join(', ')}`,
+          '',
+          '### Observational Data Trial Schema',
+          '| Trial | Input (X) | Expected (Y) |',
+          '|---|---|---|',
+          ...e.suggestedTrials.map((t) => `| #${t.trialNumber} | ${t.inputVal} | ${t.expectedVal} |`),
+          '',
+        );
+      } else {
+        const p = labProtocol as PhysicalLabProtocol;
+        lines.push(
+          '### Step-by-Step Physical Build',
+          ...p.steps.map((s) => `#### Step ${s.stepNumber}: ${s.title}\n${s.instruction}\n- Expected: ${s.expectedOutcome}`),
+          '',
+          '### Troubleshooting Fault Diagnostics',
+          ...p.troubleshooting.map((t) => `- **${t.symptom}:** ${t.solution} (Cause: ${t.cause})`),
+          '',
+        );
+      }
+    }
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `LearnMate-Lab-Report-${project.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const currentConfig = selectedData ? COMPONENT_CONFIGS[selectedData.type] : null;
   const CurrentIcon = currentConfig?.icon ?? Wrench;
@@ -694,8 +788,17 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
             </div>
           )}
 
-          <footer className="border-t border-gray-100 bg-gray-50/50 px-4 py-2 text-[11px] text-gray-400">
-            Click nodes to inspect · Drag to rearrange · Scroll to zoom
+          <footer className="border-t border-gray-100 bg-gray-50/50 px-4 py-2 text-[11px] text-gray-500 flex items-center justify-between gap-2">
+            <span className="truncate">Click nodes to inspect · Scroll to zoom</span>
+            <button
+              type="button"
+              onClick={handleDownloadFullReport}
+              className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition shrink-0"
+              title="Download complete engineering report bundle"
+            >
+              <Download className="h-3 w-3" />
+              <span>Export Report</span>
+            </button>
           </footer>
         </aside>
       )}
