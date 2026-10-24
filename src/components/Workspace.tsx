@@ -352,64 +352,74 @@ export default function Workspace() {
 
   return (
     <div className="relative flex h-screen w-full bg-gray-50 text-gray-900 font-sans overflow-hidden">
+      {/* Mobile backdrop overlay when sidebar is open */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/40 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* DOCUMENT & IDEATION SIDEBAR (collapsible / responsive) */}
       {isSidebarOpen && (
-        <aside className="fixed inset-y-0 left-0 z-30 flex w-full md:w-80 lg:w-96 shrink-0 flex-col border-r border-gray-200 bg-white shadow-lg md:relative md:shadow-none transition-all">
-          <header className="p-4 border-b border-gray-200 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
+        <aside className="fixed inset-y-0 left-0 z-30 flex w-[85vw] max-w-sm md:w-80 lg:w-96 shrink-0 flex-col border-r border-gray-200 bg-white shadow-xl md:relative md:shadow-none">
+          <header className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
               <BookOpen className="text-blue-600 h-6 w-6" />
-              <h2 className="text-xl font-bold tracking-tight">LearnMate</h2>
+              <h2 className="text-lg font-bold tracking-tight">LearnMate</h2>
             </div>
-            {/* Close button on mobile */}
+            {/* Close button — always visible for easy dismissal */}
             <button
               type="button"
               onClick={() => setIsSidebarOpen(false)}
-              className="md:hidden rounded p-1 text-gray-500 hover:bg-gray-100"
+              className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition"
+              aria-label="Close sidebar"
             >
               <PanelLeftClose className="h-5 w-5" />
             </button>
           </header>
 
-          <main className="flex-1 p-5 flex flex-col justify-start relative overflow-y-auto space-y-4">
+          <main className="flex-1 px-5 py-5 flex flex-col justify-start overflow-y-auto space-y-5">
             {!file ? (
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                    Option 1: Study Document
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                    Option 1 — Study a Document
                   </span>
                   <FileUpload onFileSelect={handleFileSelect} />
                 </div>
 
-                <div className="relative flex items-center justify-center py-2">
+                <div className="relative flex items-center justify-center">
                   <div className="border-t border-gray-200 w-full" />
-                  <span className="bg-white px-2 text-[11px] font-semibold text-gray-400 uppercase">
-                    Or Ideate Directly
+                  <span className="absolute bg-white px-3 text-xs font-semibold text-gray-400 uppercase">
+                    or
                   </span>
                 </div>
 
                 {/* Option 2: Reason With Me Pitch Card */}
-                <div className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50/70 via-purple-50/40 to-blue-50/60 p-4 space-y-2.5 shadow-sm">
-                  <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs uppercase tracking-wide">
-                    <Sparkles className="h-4 w-4 text-indigo-600" />
+                <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-purple-50/50 to-blue-50 p-5 space-y-3 shadow-sm">
+                  <div className="flex items-center gap-2 text-indigo-900 font-bold text-sm">
+                    <Sparkles className="h-5 w-5 text-indigo-600 shrink-0" />
                     <span>Reason With Me</span>
                   </div>
-                  <p className="text-xs text-gray-700 leading-relaxed">
-                    Have an idea for a machine, robot, circuit, or CAD mechanism? Speak or type it — we will evaluate feasibility, write FreeCAD/AutoCAD code, and generate a 2D interactive blueprint.
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    Have an idea for a machine, robot, circuit, or CAD mechanism? Speak or type it — we'll evaluate feasibility, write FreeCAD/AutoCAD code, and generate a 2D interactive blueprint.
                   </p>
                   <button
                     type="button"
                     onClick={() => setIsReasonModalOpen(true)}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow hover:bg-indigo-700 transition active:scale-[.98]"
                   >
-                    <Mic className="h-3.5 w-3.5" />
+                    <Mic className="h-4 w-4" />
                     <span>Speak or Pitch an Idea</span>
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="w-full bg-gray-50 rounded-xl border border-gray-200 p-5 flex items-center justify-center flex-col relative overflow-hidden shadow-sm">
+              <div className="w-full bg-gray-50 rounded-2xl border border-gray-200 p-5 flex items-center justify-center flex-col relative overflow-hidden shadow-sm space-y-3">
                 <FileText
-                  className={`h-12 w-12 mb-3 ${
+                  className={`h-12 w-12 ${
                     isProcessing
                       ? 'text-blue-400 animate-pulse'
                       : error
@@ -423,61 +433,61 @@ export default function Workspace() {
                 </p>
 
                 {isProcessing ? (
-                  <div className="mt-3 flex items-center space-x-2 text-blue-600 font-medium text-xs">
+                  <div className="flex items-center space-x-2 text-blue-600 font-medium text-sm">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Analyzing document...</span>
+                    <span>Analyzing document…</span>
                   </div>
                 ) : error ? (
-                  <div className="flex flex-col items-center mt-2">
-                    <p className="text-xs text-red-600 font-medium bg-red-50 px-2.5 py-1 rounded-full border border-red-200">
+                  <div className="flex flex-col items-center gap-2">
+                    <p className="text-sm text-red-600 font-medium bg-red-50 px-3 py-1 rounded-full border border-red-200">
                       Analysis Failed
                     </p>
                     <button
                       onClick={() => file && handleFileSelect(file)}
-                      className="mt-2 text-xs text-blue-600 hover:underline flex items-center gap-1 font-medium"
+                      className="text-sm text-blue-600 hover:underline flex items-center gap-1.5 font-medium"
                     >
-                      <RefreshCw className="h-3 w-3" /> Retry Analysis
+                      <RefreshCw className="h-3.5 w-3.5" /> Retry Analysis
                     </button>
                   </div>
                 ) : analysis ? (
-                  <div className="flex flex-col items-center gap-1.5 mt-2">
-                    <p className="text-xs text-green-700 font-medium bg-green-50 px-2.5 py-0.5 rounded-full border border-green-200">
+                  <div className="flex flex-col items-center gap-2">
+                    <p className="text-sm text-green-700 font-medium bg-green-50 px-3 py-1 rounded-full border border-green-200">
                       ✓ Analysis Complete
                     </p>
                     {isIndexingRag ? (
-                      <div className="flex items-center gap-1.5 text-[11px] text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100 animate-pulse font-medium">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        <span>Indexing Studio Graph...</span>
+                      <div className="flex items-center gap-1.5 text-xs text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100 animate-pulse font-medium">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Indexing Studio Graph…</span>
                       </div>
                     ) : ragError ? (
                       <button
                         onClick={handleRetryRag}
-                        className="text-xs text-amber-600 hover:underline flex items-center gap-1 font-medium"
+                        className="text-sm text-amber-600 hover:underline flex items-center gap-1.5 font-medium"
                       >
-                        <RefreshCw className="h-3 w-3" /> Retry RAG Indexing
+                        <RefreshCw className="h-3.5 w-3.5" /> Retry RAG Indexing
                       </button>
                     ) : workspaceId ? (
-                      <span className="text-[11px] text-gray-500 font-medium">
+                      <span className="text-xs text-gray-500 font-medium">
                         ✓ Studio Graph Ready
                       </span>
                     ) : null}
                   </div>
                 ) : null}
 
-                <div className="mt-6 flex flex-col gap-2 w-full pt-3 border-t border-gray-200">
+                <div className="flex flex-col gap-2.5 w-full pt-3 border-t border-gray-200">
                   <button
                     type="button"
                     onClick={() => setIsReasonModalOpen(true)}
-                    className="flex items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/70 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition"
                   >
-                    <Sparkles className="h-3.5 w-3.5" />
+                    <Sparkles className="h-4 w-4" />
                     <span>Reason With Me</span>
                   </button>
 
                   <button
                     onClick={() => setIsResetModalOpen(true)}
                     disabled={isProcessing}
-                    className="text-xs text-gray-500 hover:text-red-600 font-medium transition py-1"
+                    className="text-sm text-gray-400 hover:text-red-500 font-medium transition py-1.5 text-center"
                   >
                     Remove Document / Reset
                   </button>
@@ -490,28 +500,28 @@ export default function Workspace() {
 
       {/* MAIN VIEWPORT — Expands fully when sidebar is hidden */}
       <div className="flex min-w-0 flex-1 flex-col bg-gray-50 overflow-hidden">
-        {/* Navigation & Action Header */}
-        <header className="flex items-center justify-between border-b border-gray-200 bg-white px-3 py-2 shrink-0">
-          <div className="flex items-center gap-2">
+        {/* Navigation & Action Header — generous height, easy tap targets */}
+        <header className="flex items-center justify-between border-b border-gray-200 bg-white px-3 sm:px-4 py-2.5 shrink-0 gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Sidebar Toggle Button */}
             <button
               type="button"
               onClick={() => setIsSidebarOpen((open) => !open)}
               title={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition"
             >
               {isSidebarOpen ? (
-                <PanelLeftClose className="h-4 w-4" />
+                <PanelLeftClose className="h-5 w-5" />
               ) : (
-                <PanelLeftOpen className="h-4 w-4" />
+                <PanelLeftOpen className="h-5 w-5" />
               )}
             </button>
 
             {!isSidebarOpen && (
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-blue-600">LearnMate</span>
+                <span className="text-sm font-bold text-blue-600 hidden sm:block">LearnMate</span>
                 {headerDocumentName && (
-                  <span className="hidden sm:inline-block truncate max-w-[180px] rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs text-gray-600 font-medium">
+                  <span className="hidden md:inline-block truncate max-w-[200px] rounded-full border border-gray-200 bg-gray-50 px-3 py-0.5 text-xs text-gray-600 font-medium">
                     {headerDocumentName}
                   </span>
                 )}
@@ -519,36 +529,36 @@ export default function Workspace() {
             )}
           </div>
 
-          {/* Center Tabs */}
-          <nav className="flex items-center gap-1 sm:gap-4 overflow-x-auto">
+          {/* Center Tabs — larger tap targets, label always visible on sm+ */}
+          <nav className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto flex-1 justify-center mx-2 sm:mx-4">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 disabled={tab.isDisabled}
                 title={tab.title}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition ${
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition whitespace-nowrap ${
                   displayTab === tab.id
                     ? 'bg-blue-50 text-blue-600 shadow-sm'
                     : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-40'
                 }`}
               >
-                <tab.icon className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{tab.label}</span>
+                <tab.icon className="h-4 w-4 shrink-0" />
+                <span className="hidden xs:inline sm:inline">{tab.label}</span>
               </button>
             ))}
           </nav>
 
-          {/* Right Action Utilities: Library, Reason With Me, Notepad, Settings, Reset */}
-          <div className="flex items-center gap-1.5">
+          {/* Right Action Utilities */}
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             {/* Project Library Button */}
             <button
               type="button"
               onClick={() => setIsLibraryModalOpen(true)}
-              className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition shadow-sm"
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 sm:px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition shadow-sm"
               title="Open Project Library Manager"
             >
-              <FolderOpen className="h-3.5 w-3.5 text-blue-600" />
+              <FolderOpen className="h-4 w-4 text-blue-600 shrink-0" />
               <span className="hidden md:inline">Library</span>
             </button>
 
@@ -556,10 +566,10 @@ export default function Workspace() {
             <button
               type="button"
               onClick={() => setIsReasonModalOpen(true)}
-              className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50/70 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition shadow-sm"
+              className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2 sm:px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition shadow-sm"
               title="Reason With Me (Voice/Text Ideation)"
             >
-              <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+              <Sparkles className="h-4 w-4 text-indigo-600 shrink-0" />
               <span className="hidden lg:inline">Reason With Me</span>
             </button>
 
@@ -567,21 +577,21 @@ export default function Workspace() {
             <button
               type="button"
               onClick={() => setIsNotepadOpen(true)}
-              className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition shadow-sm"
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 sm:px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition shadow-sm"
               title="Open Laboratory Notepad"
             >
-              <BookOpen className="h-3.5 w-3.5" />
+              <BookOpen className="h-4 w-4 shrink-0" />
               <span className="hidden xl:inline">Notepad</span>
             </button>
 
-            {/* Settings (Bring-Your-Own-Key / Ollama) Button */}
+            {/* Settings Button */}
             <button
               type="button"
               onClick={() => setIsSettingsModalOpen(true)}
-              className="flex items-center rounded-lg border border-gray-200 bg-white p-1.5 text-gray-600 hover:bg-gray-50 hover:text-indigo-600 transition shadow-sm"
+              className="flex items-center rounded-lg border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-50 hover:text-indigo-600 transition shadow-sm"
               title="AI Settings: Connect Custom Key or Local Ollama"
             >
-              <Settings className="h-3.5 w-3.5" />
+              <Settings className="h-4 w-4" />
             </button>
 
             {/* Reset Session Button */}
@@ -589,10 +599,10 @@ export default function Workspace() {
               <button
                 type="button"
                 onClick={() => setIsResetModalOpen(true)}
-                className="flex items-center rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition"
+                className="flex items-center rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 transition"
                 title="Reset / Delete Previous Learning"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-4 w-4" />
               </button>
             )}
           </div>
@@ -601,25 +611,29 @@ export default function Workspace() {
         {/* Tab Content Display Area */}
         <div className="flex-1 min-h-0 p-2 sm:p-4 overflow-hidden">
           {error ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="bg-red-50 border border-red-200 p-6 rounded-xl flex flex-col items-center text-center max-w-sm">
-                <AlertCircle className="h-10 w-10 text-red-500 mb-3" />
-                <h3 className="font-semibold text-red-800 mb-1">Analysis Failed</h3>
+            <div className="h-full flex items-center justify-center p-4">
+              <div className="bg-red-50 border border-red-200 p-8 rounded-2xl flex flex-col items-center text-center max-w-sm w-full">
+                <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+                <h3 className="font-bold text-red-800 text-base mb-2">Analysis Failed</h3>
                 <p className="text-sm text-red-600">{error}</p>
               </div>
             </div>
           ) : !file && !effectiveWorkspaceId ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-6 space-y-3">
-              <Sparkles className="h-12 w-12 text-indigo-400 opacity-60 animate-bounce" />
-              <h3 className="text-base font-bold text-gray-700">Welcome to LearnMate Studio</h3>
-              <p className="text-xs text-gray-500 max-w-md">
-                Upload a lecture/textbook document on the left, click <strong>Reason With Me</strong> to explore an idea without a document, or browse your <strong>Project Library</strong>.
-              </p>
-              <div className="flex items-center gap-3 pt-1">
+            <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-6 sm:p-10 space-y-5">
+              <Sparkles className="h-14 w-14 text-indigo-400 opacity-60 animate-bounce" />
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-gray-700">Welcome to LearnMate Studio</h3>
+                <p className="text-sm text-gray-500 max-w-md leading-relaxed">
+                  Upload a lecture or textbook document on the left, click{' '}
+                  <strong>Reason With Me</strong> to explore an idea without a document, or browse your{' '}
+                  <strong>Project Library</strong>.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsReasonModalOpen(true)}
-                  className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-blue-700 transition flex items-center gap-2"
+                  className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-md hover:bg-blue-700 transition flex items-center gap-2"
                 >
                   <Sparkles className="h-4 w-4" />
                   <span>Start with Reason With Me</span>
@@ -627,7 +641,7 @@ export default function Workspace() {
                 <button
                   type="button"
                   onClick={() => setIsLibraryModalOpen(true)}
-                  className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 transition flex items-center gap-2"
+                  className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50 transition flex items-center gap-2"
                 >
                   <FolderOpen className="h-4 w-4 text-blue-600" />
                   <span>Open Library</span>
@@ -638,8 +652,8 @@ export default function Workspace() {
             <div
               className={`h-full bg-white border border-gray-200 rounded-xl shadow-sm ${
                 displayTab === 'projects'
-                  ? 'p-2 overflow-hidden flex flex-col'
-                  : 'mx-auto w-full max-w-5xl p-4 sm:p-6 overflow-y-auto'
+                  ? 'p-1 sm:p-2 overflow-hidden flex flex-col'
+                  : 'mx-auto w-full max-w-5xl p-4 sm:p-8 overflow-y-auto'
               }`}
             >
               <div className={displayTab === 'summary' ? 'block' : 'hidden'}>

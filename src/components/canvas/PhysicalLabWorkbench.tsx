@@ -183,7 +183,7 @@ export default function PhysicalLabWorkbench({ protocol, onSendToNotepad }: Phys
           <div className="overflow-x-auto p-4">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-gray-200 text-gray-500 font-semibold uppercase text-[10px]">
+                <tr className="border-b border-gray-200 text-gray-500 font-semibold uppercase text-xs">
                   <th className="pb-2">Component Item</th>
                   <th className="pb-2">Specification / Rating</th>
                   <th className="pb-2">Functional Purpose</th>
@@ -225,7 +225,7 @@ export default function PhysicalLabWorkbench({ protocol, onSendToNotepad }: Phys
             <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">
               Physical Assembly & Wiring Steps
             </h4>
-            <p className="text-[11px] text-gray-500">Check off steps as you wire and test on your bench</p>
+            <p className="text-xs text-gray-500">Check off steps as you wire and test on your bench</p>
           </div>
           <div className="flex items-center gap-2">
             <div className="h-2 w-24 bg-gray-200 rounded-full overflow-hidden">
@@ -240,7 +240,7 @@ export default function PhysicalLabWorkbench({ protocol, onSendToNotepad }: Phys
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {steps.map((st) => {
             const isDone = completedSteps.includes(st.stepNumber);
             return (

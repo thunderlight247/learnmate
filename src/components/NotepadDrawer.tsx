@@ -112,7 +112,7 @@ export default function NotepadDrawer({
           </div>
           <div>
             <h3 className="text-sm font-bold text-gray-900">Laboratory Notepad</h3>
-            <span className="text-[10px] text-gray-500">
+            <span className="text-xs text-gray-500">
               {saveStatus === 'saved' ? '✓ Auto-saved' : 'Saving...'}
             </span>
           </div>
@@ -155,7 +155,7 @@ export default function NotepadDrawer({
 
       {/* Drawer Content */}
       <div className="flex flex-1 flex-col p-4 space-y-2 overflow-hidden">
-        <div className="flex items-center justify-between text-[11px] text-gray-500">
+        <div className="flex items-center justify-between text-xs text-gray-500">
           <span>Markdown notes & CAD snippets</span>
           <span>{notes.length} characters</span>
         </div>
@@ -168,7 +168,7 @@ export default function NotepadDrawer({
       </div>
 
       {/* Drawer Footer */}
-      <div className="border-t border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] text-gray-500 flex items-center justify-between">
+      <div className="border-t border-gray-200 bg-gray-50 px-4 py-2.5 text-xs text-gray-500 flex items-center justify-between">
         <span>💡 Use "Send to Notepad" anywhere to pin data</span>
         <button
           type="button"

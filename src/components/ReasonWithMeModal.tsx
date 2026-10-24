@@ -226,7 +226,7 @@ export default function ReasonWithMeModal({
                     <button
                       type="button"
                       onClick={toggleListening}
-                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                         isListening
                           ? 'bg-red-500 text-white animate-pulse'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -245,7 +245,7 @@ export default function ReasonWithMeModal({
                       )}
                     </button>
                   )}
-                  <span className="text-[11px] text-gray-400">
+                  <span className="text-xs text-gray-400">
                     No document needed
                   </span>
                 </div>
@@ -254,7 +254,7 @@ export default function ReasonWithMeModal({
                   type="button"
                   onClick={() => handleReason()}
                   disabled={!ideaText.trim() || isLoading}
-                  className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition disabled:opacity-50"
                 >
                   {isLoading ? (
                     <>
@@ -273,7 +273,7 @@ export default function ReasonWithMeModal({
 
             {/* Quick Inspiration Pills */}
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-[11px] text-gray-400 font-medium">Try inspiration:</span>
+              <span className="text-xs text-gray-400 font-medium">Try inspiration:</span>
               {[
                 '3D-printable robotic gripper in FreeCAD',
                 'Dual-chamber pneumatic pulse simulator',
@@ -287,7 +287,7 @@ export default function ReasonWithMeModal({
                     setIdeaText(pill);
                     handleReason(pill);
                   }}
-                  className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-[11px] text-gray-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition"
+                  className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs text-gray-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition"
                 >
                   {pill}
                 </button>
@@ -307,7 +307,7 @@ export default function ReasonWithMeModal({
               {/* Header Title & Verdict */}
               <div className="rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50/80 to-blue-50/40 p-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">
+                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">
                     System Concept Evaluation
                   </span>
                   <h3 className="text-base font-bold text-gray-900 mt-0.5">
@@ -380,7 +380,7 @@ export default function ReasonWithMeModal({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
                   <div className="rounded-lg bg-blue-50/60 p-2.5 space-y-1 border border-blue-100">
-                    <strong className="text-[11px] font-bold text-blue-900 block">
+                    <strong className="text-xs font-bold text-blue-900 block">
                       Governing Laws & Principles:
                     </strong>
                     <ul className="text-xs text-blue-800 list-disc pl-4 space-y-0.5">
@@ -391,7 +391,7 @@ export default function ReasonWithMeModal({
                   </div>
 
                   <div className="rounded-lg bg-amber-50/60 p-2.5 space-y-1 border border-amber-100">
-                    <strong className="text-[11px] font-bold text-amber-900 block">
+                    <strong className="text-xs font-bold text-amber-900 block">
                       Real-World Bottlenecks & Limits:
                     </strong>
                     <ul className="text-xs text-amber-800 list-disc pl-4 space-y-0.5">
@@ -425,7 +425,7 @@ export default function ReasonWithMeModal({
                       Step-by-Step Implementation Roadmap
                     </h4>
                   </div>
-                  <span className="text-[11px] text-gray-500 font-medium">
+                  <span className="text-xs text-gray-500 font-medium">
                     CAD Tool: <strong className="text-purple-700">{analysis.cadRecommendation.primaryTool}</strong>
                   </span>
                 </div>
@@ -437,14 +437,14 @@ export default function ReasonWithMeModal({
                       className="rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-1 hover:bg-gray-50 transition"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-purple-700 uppercase">
+                        <span className="text-xs font-bold text-purple-700 uppercase">
                           {step.phase}
                         </span>
                         <div className="flex flex-wrap gap-1">
                           {step.toolsOrActions.map((t, i) => (
                             <span
                               key={i}
-                              className="rounded bg-gray-200/70 px-1.5 py-0.2 text-[10px] text-gray-700"
+                              className="rounded bg-gray-200/70 px-1.5 py-0.2 text-xs text-gray-700"
                             >
                               {t}
                             </span>
@@ -454,7 +454,7 @@ export default function ReasonWithMeModal({
                       <h5 className="text-xs font-bold text-gray-900">{step.title}</h5>
                       <p className="text-xs text-gray-600 leading-relaxed">{step.description}</p>
                       {step.externalCadTip && (
-                        <p className="text-[11px] text-purple-700 font-medium pt-0.5">
+                        <p className="text-xs text-purple-700 font-medium pt-0.5">
                           📐 CAD Tip: {step.externalCadTip}
                         </p>
                       )}

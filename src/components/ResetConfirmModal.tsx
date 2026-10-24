@@ -70,7 +70,7 @@ export default function ResetConfirmModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 transition"
+            className="rounded-lg px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 transition"
           >
             Cancel
           </button>
@@ -80,7 +80,7 @@ export default function ResetConfirmModal({
               onConfirmReset({ clearNotepad });
               onClose();
             }}
-            className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-red-700 transition"
+            className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-red-700 transition"
           >
             <Trash2 className="h-3.5 w-3.5" />
             <span>Reset Learning Session</span>

@@ -206,7 +206,7 @@ export default function ProjectLibraryModal({
                 onClose();
                 onNewBlueprint();
               }}
-              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition"
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 transition"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>New Blueprint</span>
@@ -303,7 +303,7 @@ export default function ProjectLibraryModal({
                   >
                     <div className="space-y-2">
                       <div className="flex items-start justify-between gap-2">
-                        <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 border border-blue-100">
+                        <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-blue-700 border border-blue-100">
                           {category}
                         </span>
 
@@ -337,7 +337,7 @@ export default function ProjectLibraryModal({
                       </h3>
 
                       {p.createdAt && (
-                        <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-400">
                           <Calendar className="h-3 w-3" />
                           <span>{new Date(p.createdAt).toLocaleDateString()}</span>
                         </div>

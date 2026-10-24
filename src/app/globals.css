@@ -1,12 +1,61 @@
 @import "tailwindcss";
 
+/* ── Custom breakpoint: xs (475px) ── */
+@custom-variant xs (&:is([data-viewport~="xs"] *));
+@theme {
+  --breakpoint-xs: 475px;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+}
+
+/* ── Base typography improvements for readability across all devices ── */
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* ── Smooth scrollbars ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* ── Improved focus rings for accessibility ── */
+:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* ── Tap highlight removal for mobile buttons ── */
+button, a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Ensure textarea and inputs inherit font ── */
+textarea, input, select {
+  font-family: inherit;
+}
+

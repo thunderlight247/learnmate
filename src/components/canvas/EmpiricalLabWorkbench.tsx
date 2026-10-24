@@ -226,7 +226,7 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
       {/* SECTION 1: HYPOTHESIS CARDS WITH AUDIO MENTOR */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+          <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
             Formal Scientific Hypotheses
           </span>
           <button
@@ -274,26 +274,26 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
         </h4>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-2.5 space-y-1">
-            <span className="text-[10px] font-bold text-blue-700 uppercase">
+            <span className="text-xs font-bold text-blue-700 uppercase">
               Independent Variable (X)
             </span>
             <p className="text-xs font-semibold text-gray-900">{variableMatrix.independent.name}</p>
-            <span className="text-[11px] text-gray-500 block">Unit: {variableMatrix.independent.unit}</span>
+            <span className="text-xs text-gray-500 block">Unit: {variableMatrix.independent.unit}</span>
           </div>
 
           <div className="rounded-lg border border-purple-100 bg-purple-50/40 p-2.5 space-y-1">
-            <span className="text-[10px] font-bold text-purple-700 uppercase">
+            <span className="text-xs font-bold text-purple-700 uppercase">
               Dependent Variable (Y)
             </span>
             <p className="text-xs font-semibold text-gray-900">{variableMatrix.dependent.name}</p>
-            <span className="text-[11px] text-gray-500 block">Unit: {variableMatrix.dependent.unit}</span>
+            <span className="text-xs text-gray-500 block">Unit: {variableMatrix.dependent.unit}</span>
           </div>
 
           <div className="rounded-lg border border-amber-100 bg-amber-50/40 p-2.5 space-y-1">
-            <span className="text-[10px] font-bold text-amber-800 uppercase">
+            <span className="text-xs font-bold text-amber-800 uppercase">
               Controlled Constants
             </span>
-            <ul className="text-[11px] text-gray-600 list-disc pl-3.5 space-y-0.5">
+            <ul className="text-xs text-gray-600 list-disc pl-3.5 space-y-0.5">
               {variableMatrix.controlled.slice(0, 3).map((c, i) => (
                 <li key={i}>{c}</li>
               ))}
@@ -313,7 +313,7 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
               <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">
                 Live Dynamic Response & Correlation Plot
               </h4>
-              <p className="text-[11px] text-gray-500">
+              <p className="text-xs text-gray-500">
                 Theoretical curve vs. your real-time empirical measurements
               </p>
             </div>
@@ -322,14 +322,14 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-xs">
               <span className="inline-block h-2 w-4 bg-indigo-500 rounded-sm" />
-              <span className="text-gray-500 text-[11px]">Theoretical f(x)</span>
+              <span className="text-gray-500 text-xs">Theoretical f(x)</span>
             </div>
             <div className="flex items-center gap-1.5 text-xs">
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />
-              <span className="text-gray-500 text-[11px]">Observed Data</span>
+              <span className="text-gray-500 text-xs">Observed Data</span>
             </div>
             {computedStats.rSquared !== null && (
-              <span className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 font-mono text-[11px] font-bold text-indigo-700">
+              <span className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 font-mono text-xs font-bold text-indigo-700">
                 R² = {computedStats.rSquared}
               </span>
             )}
@@ -451,7 +451,7 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
               <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">
                 Interactive Observational Data Logger
               </h4>
-              <p className="text-[11px] text-gray-500">
+              <p className="text-xs text-gray-500">
                 Type observed readings from your instruments to calculate error &amp; variance
               </p>
             </div>
@@ -482,7 +482,7 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
         <div className="overflow-x-auto p-4">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-gray-200 text-gray-500 font-semibold uppercase text-[10px]">
+              <tr className="border-b border-gray-200 text-gray-500 font-semibold uppercase text-xs">
                 <th className="pb-2">Trial</th>
                 <th className="pb-2">Input (X)</th>
                 <th className="pb-2">Theoretical (Exp)</th>
@@ -517,7 +517,7 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
                     <td className="py-2.5">
                       {metric?.percentError !== null ? (
                         <span
-                          className={`inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono font-bold text-[11px] ${
+                          className={`inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono font-bold text-xs ${
                             isAcceptable
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -579,7 +579,7 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
               )}
             </div>
 
-            <div className="text-[11px] text-gray-500">
+            <div className="text-xs text-gray-500">
               {computedStats.averageError !== null && computedStats.averageError < 10 ? (
                 <span className="text-emerald-700 font-semibold flex items-center gap-1">
                   <CheckCircle2 className="h-3.5 w-3.5" /> Empirical measurements confirm H₁
@@ -600,16 +600,16 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
           </h5>
           <div className="space-y-1.5 text-xs text-gray-700">
             <div>
-              <strong className="text-gray-900 block text-[11px]">Systematic Sources:</strong>
-              <ul className="list-disc pl-4 text-[11px] text-gray-600">
+              <strong className="text-gray-900 block text-xs">Systematic Sources:</strong>
+              <ul className="list-disc pl-4 text-xs text-gray-600">
                 {errorSources.systematicErrors.map((err, i) => (
                   <li key={i}>{err}</li>
                 ))}
               </ul>
             </div>
             <div>
-              <strong className="text-gray-900 block text-[11px]">Random Noise:</strong>
-              <ul className="list-disc pl-4 text-[11px] text-gray-600">
+              <strong className="text-gray-900 block text-xs">Random Noise:</strong>
+              <ul className="list-disc pl-4 text-xs text-gray-600">
                 {errorSources.randomErrors.map((err, i) => (
                   <li key={i}>{err}</li>
                 ))}

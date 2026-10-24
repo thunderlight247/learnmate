@@ -145,24 +145,24 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
               <h4 className="text-xs font-bold text-indigo-950 uppercase tracking-wide">
                 Interactive Virtual Simulator
               </h4>
-              <p className="text-[11px] text-indigo-700/80">{simulationWorkbench.engineName}</p>
+              <p className="text-xs text-indigo-700/80">{simulationWorkbench.engineName}</p>
             </div>
           </div>
-          <span className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-700 animate-pulse">
+          <span className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 animate-pulse">
             <Activity className="h-3 w-3" />
             Live Engine Active
           </span>
         </div>
 
         <div className="p-4 space-y-4">
-          <p className="text-xs text-gray-600 leading-relaxed">
+          <p className="text-sm text-gray-600 leading-relaxed">
             {simulationWorkbench.description}
           </p>
 
           {/* Governing Formula */}
           {simulationWorkbench.formulaDisplay && (
             <div className="rounded-lg border border-gray-200/70 bg-gray-50/70 p-2.5 flex items-center justify-between gap-3">
-              <span className="text-[11px] font-medium text-gray-500">Governing Dynamic:</span>
+              <span className="text-xs font-medium text-gray-500">Governing Dynamic:</span>
               <code className="text-xs font-mono font-bold text-indigo-900 bg-white px-2 py-0.5 rounded border border-gray-200">
                 {simulationWorkbench.formulaDisplay}
               </code>
@@ -171,7 +171,7 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
 
           {/* Parameter Sliders */}
           <div className="space-y-3 pt-1">
-            <h5 className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <h5 className="text-xs font-bold uppercase tracking-wider text-gray-500">
               Tune Parameter Controls
             </h5>
             <div className="grid grid-cols-1 gap-3">
@@ -199,9 +199,9 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
                       onChange={(e) => handleParamChange(param.id, parseFloat(e.target.value))}
                       className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                     />
-                    <div className="flex justify-between items-center text-[10px] text-gray-400 mt-1">
+                    <div className="flex justify-between items-center text-xs text-gray-400 mt-1">
                       <span>{param.min} {param.unit}</span>
-                      <span className="text-[10px] text-gray-500">{param.description}</span>
+                      <span className="text-sm text-gray-500">{param.description}</span>
                       <span>{param.max} {param.unit}</span>
                     </div>
                   </div>
@@ -212,7 +212,7 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
 
           {/* Real-time Telemetry Dashboard */}
           <div className="space-y-2 pt-2 border-t border-gray-100">
-            <h5 className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <h5 className="text-xs font-bold uppercase tracking-wider text-gray-500">
               Live Calculated Telemetry Readout
             </h5>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -221,7 +221,7 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
                   key={tel.id}
                   className="rounded-lg border border-indigo-100 bg-gradient-to-b from-indigo-50/50 to-white p-3 text-center"
                 >
-                  <span className="text-[10px] font-medium text-gray-500 block truncate">
+                  <span className="text-xs font-medium text-gray-500 block truncate">
                     {tel.label}
                   </span>
                   <span className="text-lg font-bold font-mono text-indigo-950 mt-0.5 block">
@@ -246,7 +246,7 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
               <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">
                 Virtual Sample & CAD Script Generator
               </h4>
-              <p className="text-[11px] text-gray-500">
+              <p className="text-sm text-gray-500">
                 Executable scripts for FreeCAD (Python) &amp; AutoCAD (AutoLISP)
               </p>
             </div>
@@ -356,7 +356,7 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
             </pre>
           </div>
 
-          <p className="text-[11px] text-gray-500 italic">
+          <p className="text-xs text-gray-500 italic">
             💡 {cadExports.instructions}
           </p>
         </div>
@@ -373,12 +373,12 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
               <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">
                 External Tool Implementation Guide
               </h4>
-              <p className="text-[11px] text-gray-500">
+              <p className="text-sm text-gray-500">
                 Recommended Software: <strong className="text-purple-700 font-semibold">{externalSoftwareGuide.recommendedTool}</strong>
               </p>
             </div>
           </div>
-          <span className="text-[11px] font-medium text-gray-500">
+          <span className="text-xs font-medium text-gray-500">
             Practice in your own local CAD software
           </span>
         </div>
@@ -391,13 +391,13 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-100 text-[11px] font-bold text-purple-700">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-100 text-xs font-bold text-purple-700">
                     {st.stepNumber}
                   </span>
-                  <h5 className="text-xs font-bold text-gray-900">{st.actionTitle}</h5>
+                  <h5 className="text-sm font-bold text-gray-900">{st.actionTitle}</h5>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded bg-gray-200/80 px-2 py-0.5 text-[10px] font-mono text-gray-700">
+                  <span className="rounded bg-gray-200/80 px-2 py-0.5 text-xs font-mono text-gray-700">
                     {st.softwareFeature}
                   </span>
                   {/* Audio Narrator for this step */}
@@ -426,7 +426,7 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
               </div>
               <p className="text-xs text-gray-700 pl-7 leading-relaxed">{st.instruction}</p>
               {st.tip && (
-                <p className="text-[11px] text-purple-700 pl-7 font-medium">
+                <p className="text-xs text-purple-700 pl-7 font-medium">
                   💡 Tip: {st.tip}
                 </p>
               )}

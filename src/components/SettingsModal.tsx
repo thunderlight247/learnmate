@@ -138,7 +138,7 @@ export default function SettingsModal({
             </div>
             <div>
               <h2 className="text-sm font-bold text-gray-900">AI Provider &amp; Model Engine</h2>
-              <p className="text-[11px] text-gray-500">
+              <p className="text-xs text-gray-500">
                 Connect your personal API key or run 100% offline with Local Ollama
               </p>
             </div>
@@ -186,7 +186,7 @@ export default function SettingsModal({
                         {p.label}
                       </span>
                     </div>
-                    <span className="text-[10px] text-gray-500">{p.desc}</span>
+                    <span className="text-xs text-gray-500">{p.desc}</span>
                   </button>
                 );
               })}
@@ -210,9 +210,9 @@ export default function SettingsModal({
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
                     placeholder="http://localhost:11434"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
-                  <span className="text-[10px] text-gray-400 mt-0.5 block">
+                  <span className="text-xs text-gray-400 mt-0.5 block">
                     Must allow origins or run locally (e.g. OLLAMA_ORIGINS="*" ollama serve)
                   </span>
                 </div>
@@ -225,7 +225,7 @@ export default function SettingsModal({
                     value={model}
                     onChange={(e) => setModel(e.target.value)}
                     placeholder="llama3, mistral, deepseek-r1:8b, qwen2.5:7b"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
               </div>
@@ -265,7 +265,7 @@ export default function SettingsModal({
                       {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                     </button>
                   </div>
-                  <span className="text-[10px] text-gray-400 mt-0.5 block">
+                  <span className="text-xs text-gray-400 mt-0.5 block">
                     Saved only in your browser's private localStorage.
                   </span>
                 </div>
@@ -285,7 +285,7 @@ export default function SettingsModal({
                         ? 'gpt-4o-mini'
                         : 'openrouter/auto'
                     }
-                    className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-mono focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -298,7 +298,7 @@ export default function SettingsModal({
               type="button"
               onClick={handleTestConnection}
               disabled={testing || (provider !== 'default' && provider !== 'ollama' && !apiKey.trim())}
-              className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition shadow-xs disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition shadow-xs disabled:opacity-50"
             >
               {testing ? (
                 <>
@@ -336,14 +336,14 @@ export default function SettingsModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-200 transition"
+            className="rounded-lg px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-200 transition"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSave}
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition"
+            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 transition"
           >
             <Check className="h-4 w-4" />
             <span>Save Settings</span>

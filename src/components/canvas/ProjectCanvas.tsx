@@ -398,9 +398,9 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
   const CurrentIcon = currentConfig?.icon ?? Wrench;
 
   return (
-    <div className="relative flex h-full min-h-[500px] gap-3 overflow-hidden">
+    <div className="relative flex h-full min-h-[500px] overflow-hidden flex-col md:flex-row gap-0 md:gap-3">
       {/* 2D Interactive Diagram Surface */}
-      <div className="min-w-0 flex-1 relative h-full">
+      <div className="min-w-0 flex-1 relative h-44 sm:h-64 md:h-full">
         <LearnMateCanvas
           project={project}
           selectedNodeId={selectedNodeId}
@@ -412,7 +412,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
           <button
             type="button"
             onClick={() => setIsInspectorCollapsed(false)}
-            className="absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white/95 px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-md backdrop-blur-sm hover:bg-gray-50 hover:text-blue-600 transition"
+            className="absolute top-3 right-3 z-20 flex items-center gap-2 rounded-xl border border-gray-200 bg-white/95 px-4 py-2 text-sm font-semibold text-gray-700 shadow-md backdrop-blur-sm hover:bg-gray-50 hover:text-blue-600 transition"
           >
             <PanelRightOpen className="h-4 w-4" />
             <span>Open Studio Inspector & Labs</span>
@@ -422,37 +422,37 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
 
       {/* Side Inspector, Hands-On Lab, & BOM Panel */}
       {!isInspectorCollapsed && (
-        <aside className="flex w-84 lg:w-96 shrink-0 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all">
+        <aside className="flex w-full md:w-[360px] lg:w-[420px] shrink-0 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
           {/* Header Navigation Tabs with Collapse Button */}
-          <div className="flex items-center border-b border-gray-200 bg-gray-50/70 p-1">
+          <div className="flex items-center border-b border-gray-200 bg-gray-50 px-1 py-1.5 gap-0.5">
             <button
               type="button"
               onClick={() => setActiveTab('inspector')}
-              className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-semibold transition ${
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-3 text-xs sm:text-sm font-semibold transition ${
                 activeTab === 'inspector'
                   ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-white/70'
               }`}
             >
-              <Info className="h-3.5 w-3.5" />
+              <Info className="h-4 w-4 shrink-0" />
               <span className="truncate">Inspector</span>
               {selectedNodeId && (
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-600 animate-pulse" />
+                <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
               )}
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('lab')}
-              className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-semibold transition ${
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-3 text-xs sm:text-sm font-semibold transition ${
                 activeTab === 'lab'
                   ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-white/70'
               }`}
             >
-              <FlaskConical className="h-3.5 w-3.5 text-indigo-500" />
+              <FlaskConical className="h-4 w-4 text-indigo-500 shrink-0" />
               <span className="truncate">Hands-On Lab</span>
-              <span className="rounded-full bg-indigo-50 px-1 py-0.2 text-[9px] font-bold text-indigo-600">
+              <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700 shrink-0">
                 Live
               </span>
             </button>
@@ -460,15 +460,15 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
             <button
               type="button"
               onClick={() => setActiveTab('bom')}
-              className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-semibold transition ${
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-3 text-xs sm:text-sm font-semibold transition ${
                 activeTab === 'bom'
                   ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-white/70'
               }`}
             >
-              <Package className="h-3.5 w-3.5" />
+              <Package className="h-4 w-4 shrink-0" />
               <span className="truncate">Parts</span>
-              <span className="rounded-full bg-gray-200 px-1.5 py-0.2 text-[10px] text-gray-700">
+              <span className="rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold text-gray-700 shrink-0">
                 {bom.length}
               </span>
             </button>
@@ -478,7 +478,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
               type="button"
               onClick={() => setIsInspectorCollapsed(true)}
               title="Collapse Panel for Full Canvas Space"
-              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 transition ml-0.5"
+              className="rounded-lg p-2 text-gray-400 hover:bg-gray-200 hover:text-gray-700 transition ml-0.5 shrink-0"
             >
               <PanelRightClose className="h-4 w-4" />
             </button>
@@ -488,7 +488,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
           {activeTab === 'inspector' && (
             <div className="flex flex-1 flex-col overflow-y-auto">
               {selectedData ? (
-                <div className="space-y-4 p-4">
+                <div className="space-y-5 p-5">
                   {/* Header with Title and Type */}
                   <div className="flex items-start justify-between gap-2 border-b border-gray-100 pb-3">
                     <div className="flex items-start gap-2.5">
@@ -498,7 +498,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                         <CurrentIcon className="h-5 w-5" />
                       </span>
                       <div>
-                        <h3 className="text-sm font-bold text-gray-900 leading-snug">
+                        <h3 className="text-base font-bold text-gray-900 leading-snug">
                           {selectedData.label}
                         </h3>
                         <div className="flex items-center gap-1.5 mt-0.5">
@@ -524,12 +524,12 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
 
                   {/* Primary Role */}
                   {selectedData.role && (
-                    <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3 space-y-1">
+                    <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-2">
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-800">
                         <Wrench className="h-3.5 w-3.5 text-blue-600" />
                         <h4>Primary Functional Role</h4>
                       </div>
-                      <p className="text-xs text-gray-700 leading-relaxed pl-5">
+                      <p className="text-sm text-gray-700 leading-relaxed pl-5">
                         {selectedData.role}
                       </p>
                     </div>
@@ -537,12 +537,12 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
 
                   {/* System Importance */}
                   {selectedData.importance && (
-                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 space-y-1">
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-2">
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-900">
                         <Heart className="h-3.5 w-3.5 text-indigo-600" />
                         <h4>Functional & Clinical Importance</h4>
                       </div>
-                      <p className="text-xs text-indigo-950/90 leading-relaxed pl-5">
+                      <p className="text-sm text-indigo-950/90 leading-relaxed pl-5">
                         {selectedData.importance}
                       </p>
                     </div>
@@ -550,12 +550,12 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
 
                   {/* Damage & Failure Consequence */}
                   {selectedData.damageEffect && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-1">
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 space-y-2">
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-900">
                         <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
                         <h4>Damage Effect / Failure Mode</h4>
                       </div>
-                      <p className="text-xs text-amber-950/90 leading-relaxed pl-5">
+                      <p className="text-sm text-amber-950/90 leading-relaxed pl-5">
                         {selectedData.damageEffect}
                       </p>
                     </div>
@@ -563,7 +563,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
 
                   {/* Technical Specs */}
                   {Object.keys(selectedData.specs).length > 0 && (
-                    <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2">
+                    <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-800">
                         <Sliders className="h-3.5 w-3.5 text-gray-600" />
                         <h4>Component Specifications</h4>
@@ -580,7 +580,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                   )}
 
                   {/* Ask AI Contextual Question */}
-                  <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2">
+                  <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-900">
                       <Sparkles className="h-3.5 w-3.5 text-blue-600" />
                       <h4>Ask AI About This Component</h4>
@@ -618,7 +618,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                     <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
                       System Subsystems & Nodes
                     </h3>
-                    <p className="text-[11px] text-gray-400">
+                    <p className="text-xs text-gray-500 leading-relaxed">
                       Select any node on the canvas to inspect its role, failure modes, and equations.
                     </p>
                   </div>
@@ -636,7 +636,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                   </div>
 
                   {/* Component Cards */}
-                  <div className="space-y-1.5 overflow-y-auto max-h-[460px] pr-1">
+                  <div className="space-y-2 overflow-y-auto max-h-[50vh] min-h-[200px] pr-1">
                     {filteredComponents.map((comp) => {
                       const cfg = COMPONENT_CONFIGS[comp.type];
                       const Icon = cfg?.icon ?? Wrench;
@@ -645,18 +645,18 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                           key={comp.id}
                           type="button"
                           onClick={() => setSelectedNodeId(comp.id)}
-                          className="flex w-full items-center justify-between rounded-lg border border-gray-100 bg-gray-50/70 p-2.5 text-left transition hover:border-blue-300 hover:bg-white hover:shadow-sm"
+                          className="flex w-full items-center justify-between rounded-xl border border-gray-100 bg-gray-50/70 p-3.5 text-left transition hover:border-blue-300 hover:bg-white hover:shadow-sm"
                         >
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded ${cfg.badgeBg}`}>
-                              <Icon className="h-3.5 w-3.5" />
+                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${cfg.badgeBg}`}>
+                              <Icon className="h-4 w-4" />
                             </span>
                             <div className="min-w-0">
-                              <p className="text-xs font-semibold text-gray-900 truncate">
+                              <p className="text-sm font-semibold text-gray-900 truncate">
                                 {comp.label}
                               </p>
                               {comp.role && (
-                                <p className="text-[10px] text-gray-500 truncate">{comp.role}</p>
+                                <p className="text-xs text-gray-500 truncate mt-0.5">{comp.role}</p>
                               )}
                             </div>
                           </div>
@@ -674,13 +674,13 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
           {activeTab === 'lab' && (
             <div className="flex flex-1 flex-col overflow-y-auto p-4 space-y-4">
               {/* Header Title & Track Switcher */}
-              <div className="rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50/90 to-blue-50/60 p-3.5 space-y-2.5">
+              <div className="rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50/90 to-blue-50/60 p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h3 className="text-sm font-bold text-indigo-950 leading-snug">
+                    <h3 className="text-base font-bold text-indigo-950 leading-snug">
                       {labProtocol?.title || `${project.title} Hands-On Lab`}
                     </h3>
-                    <p className="text-[11px] text-indigo-700/80 mt-0.5">
+                    <p className="text-xs text-indigo-700 mt-1 leading-relaxed">
                       {labMode === 'simulation'
                         ? 'Interactive In-Browser Simulator & External CAD Generator (FreeCAD/AutoCAD)'
                         : labMode === 'experiment'
@@ -699,7 +699,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                 </div>
 
                 {/* Lab Mode Selector Buttons */}
-                <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-200/80 p-1">
+                <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-gray-200/80 p-1.5">
                   {(['simulation', 'hardware', 'experiment'] as const).map((mode) => (
                     <button
                       key={mode}
@@ -708,7 +708,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                         setLabMode(mode);
                         fetchLabProtocol(mode);
                       }}
-                      className={`rounded-md py-1.5 text-xs font-semibold transition ${
+                      className={`rounded-lg py-3 text-xs sm:text-sm font-semibold transition ${
                         labMode === mode
                           ? 'bg-white text-indigo-700 shadow-sm'
                           : 'text-gray-600 hover:text-gray-900'
@@ -773,7 +773,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                     className="rounded-lg border border-gray-100 bg-gray-50 p-3"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-semibold text-gray-900">
                         {entry.item}
                       </p>
                       <span className="shrink-0 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
@@ -781,7 +781,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                       </span>
                     </div>
                     {entry.description && (
-                      <p className="mt-1 text-xs text-gray-500">{entry.description}</p>
+                      <p className="mt-1.5 text-xs text-gray-500 leading-relaxed">{entry.description}</p>
                     )}
                     {entry.estimatedCost && (
                       <p className="mt-1 text-xs font-medium text-gray-700">
@@ -794,7 +794,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
             </div>
           )}
 
-          <footer className="border-t border-gray-100 bg-gray-50/50 px-4 py-2 text-[11px] text-gray-500 flex items-center justify-between gap-2">
+          <footer className="border-t border-gray-100 bg-gray-50/50 px-4 py-3 text-xs text-gray-500 flex items-center justify-between gap-2">
             <span className="truncate">Click nodes to inspect · Scroll to zoom</span>
             <button
               type="button"
