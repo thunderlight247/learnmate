@@ -1,9 +1,8 @@
 'use client';
 
-// Main dashboard shell that owns the uploaded document state and coordinates the learning tabs.
-// Layout: a collapsible left document sidebar plus a main content area that
-// expands to the full screen width whenever the sidebar is hidden.
-import { useSyncExternalStore, useState } from 'react';
+// Main dashboard shell that owns the uploaded document state, "Reason With Me" ideation,
+// and coordinates the learning tabs with adaptive responsive layouts.
+import { useSyncExternalStore, useState, useCallback } from 'react';
 import {
   AlertCircle,
   BookOpen,
@@ -15,6 +14,10 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCw,
+  Sparkles,
+  Trash2,
+  Mic,
+  Maximize2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import FileUpload from '@/components/FileUpload';
@@ -22,6 +25,9 @@ import SummaryTab from '@/components/SummaryTab';
 import ChatTab from '@/components/ChatTab';
 import QuizTab from '@/components/QuizTab';
 import ProjectsTab from '@/components/ProjectsTab';
+import ReasonWithMeModal from '@/components/ReasonWithMeModal';
+import ResetConfirmModal from '@/components/ResetConfirmModal';
+import NotepadDrawer from '@/components/NotepadDrawer';
 import { DocumentAnalysis } from '@/types';
 
 /** localStorage key holding the last active workspace across page reloads. */
@@ -34,13 +40,9 @@ interface SavedWorkspace {
 }
 
 /**
- * External store wrapper around the saved-workspace entry. React restores it
- * through useSyncExternalStore: reads are hydration-safe (the server snapshot
- * is null), and writes/clears notify subscribers to re-render.
+ * External store wrapper around the saved-workspace entry.
  */
 const workspaceStore = (() => {
-  // `undefined` marks "not read yet" so getSnapshot stays referentially
-  // stable between unrelated renders, as React's snapshot contract requires.
   let snapshot: SavedWorkspace | null | undefined;
   const listeners = new Set<() => void>();
 
@@ -63,7 +65,6 @@ const workspaceStore = (() => {
         savedAt: typeof parsed?.savedAt === 'string' ? parsed.savedAt : null,
       };
     } catch {
-      // Corrupted or inaccessible storage: treat as no saved workspace.
       return null;
     }
   };
@@ -97,7 +98,7 @@ const workspaceStore = (() => {
           }),
         );
       } catch {
-        // Persistence is best-effort; the session still works in memory.
+        // best-effort
       }
       snapshot = read();
       notify();
@@ -106,7 +107,7 @@ const workspaceStore = (() => {
       try {
         window.localStorage.removeItem(ACTIVE_WORKSPACE_KEY);
       } catch {
-        // Storage unavailable; reset the snapshot below regardless.
+        // ignore
       }
       snapshot = null;
       notify();
@@ -116,10 +117,6 @@ const workspaceStore = (() => {
 
 export default function Workspace() {
   const [activeTab, setActiveTab] = useState<'summary' | 'chat' | 'quiz' | 'projects'>('summary');
-
-  // Document sidebar visibility. Open by default (upload stage is half the
-  // screen); it auto-collapses as soon as a document finishes analyzing so
-  // the learning tabs take over the whole viewport.
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const [file, setFile] = useState<File | null>(null);
@@ -132,27 +129,23 @@ export default function Workspace() {
   const [isIndexingRag, setIsIndexingRag] = useState<boolean>(false);
   const [pendingProjectTopic, setPendingProjectTopic] = useState<string | null>(null);
 
-  // External-store snapshot of the workspace saved by a previous page load.
-  // Restoring goes through useSyncExternalStore: hydration-safe (the server
-  // snapshot is null) and rule-compliant with no setState-in-effect.
+  // Modals & Drawers
+  const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isNotepadOpen, setIsNotepadOpen] = useState(false);
+  const [appendNoteText, setAppendNoteText] = useState<string | null>(null);
+
   const savedWorkspace = useSyncExternalStore(
     workspaceStore.subscribe,
     workspaceStore.getSnapshot,
     workspaceStore.getServerSnapshot,
   );
 
-  // A restored studio (after a refresh) reattaches through the saved id even
-  // though the document bytes themselves are not persisted: the Projects
-  // canvas comes back fully unlocked, while reading/quiz tabs stay locked
-  // until the file is uploaded again in this browser session.
   const effectiveWorkspaceId = workspaceId ?? savedWorkspace?.workspaceId ?? null;
 
-  // A restored session has only Projects unlocked, so that is also the tab
-  // displayed by default; with a real file loaded, activeTab rules as usual.
   const displayTab =
     activeTab === 'summary' && !file && effectiveWorkspaceId ? 'projects' : activeTab;
 
-  // Name shown in the header chip: the live file, else the restored one.
   const headerDocumentName = file?.name ?? savedWorkspace?.fileName ?? null;
 
   const tabs: Array<{
@@ -167,17 +160,47 @@ export default function Workspace() {
     { id: 'quiz', label: 'Quiz', icon: HelpCircle, isDisabled: !file || isProcessing },
     {
       id: 'projects',
-      label: 'Projects',
+      label: 'Projects Studio',
       icon: Cpu,
       isDisabled: !effectiveWorkspaceId,
-      title: effectiveWorkspaceId ? undefined : 'Waiting for document processing...',
+      title: effectiveWorkspaceId ? undefined : 'Upload or start Reason With Me to unlock',
     },
   ];
 
-  // Called from SummaryTab when a learner clicks "Build a Project" on a concept
   const handleBuildProject = (topic: string) => {
     setPendingProjectTopic(topic);
     setActiveTab('projects');
+  };
+
+  const handleAppendToNotepad = useCallback((text: string) => {
+    setAppendNoteText(text);
+    setIsNotepadOpen(true);
+  }, []);
+
+  const ensureWorkspaceId = async (): Promise<string | null> => {
+    if (effectiveWorkspaceId) return effectiveWorkspaceId;
+    try {
+      const res = await fetch('/api/workspaces', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok && typeof data.workspaceId === 'string') {
+        const wsId = data.workspaceId as string;
+        setWorkspaceId(wsId);
+        workspaceStore.write({ workspaceId: wsId, fileName: 'Ideation Workspace' });
+        return wsId;
+      }
+    } catch (err) {
+      console.error('Failed to bootstrap workspace:', err);
+    }
+    return null;
+  };
+
+  const handleLaunchFromReason = async (topic: string) => {
+    const wsId = await ensureWorkspaceId();
+    if (wsId) {
+      setPendingProjectTopic(topic);
+      setActiveTab('projects');
+      setIsSidebarOpen(false); // Give the canvas maximum room
+    }
   };
 
   const ensureProcessedDocument = async (selectedFile: File): Promise<string | null> => {
@@ -207,9 +230,7 @@ export default function Workspace() {
         return null;
       }
 
-      // Persist the freshly created workspace so a page refresh restores it.
       workspaceStore.write({ workspaceId: wsId, fileName: selectedFile.name });
-
       return wsId;
     } catch (err: unknown) {
       console.error('Document processing failed:', err);
@@ -227,7 +248,6 @@ export default function Workspace() {
     setWorkspaceId(null);
     setActiveTab('summary');
 
-    // Trigger vector RAG embedding concurrently in the background
     ensureProcessedDocument(selectedFile)
       .then((wsId) => {
         if (wsId) {
@@ -244,7 +264,6 @@ export default function Workspace() {
         setIsIndexingRag(false);
       });
 
-    // Execute document analysis immediately so student sees summary fast
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
@@ -258,10 +277,6 @@ export default function Workspace() {
 
       setAnalysis(data.data);
       setRawText(data.rawText);
-
-      // Analysis succeeded: get out of the way and let the summary take the
-      // full screen. On failure the sidebar stays open so file status and the
-      // retry action remain visible without an extra click.
       setIsSidebarOpen(false);
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'An unexpected error occurred.';
@@ -289,40 +304,88 @@ export default function Workspace() {
     }
   };
 
-  const handleRemoveDocument = () => {
+  const handleConfirmReset = ({ clearNotepad }: { clearNotepad: boolean }) => {
     setFile(null);
     setAnalysis(null);
     setRawText(null);
     setError(null);
     setRagError(false);
     setIsIndexingRag(false);
+    setWorkspaceId(null);
+    setPendingProjectTopic(null);
     workspaceStore.clear();
-    // Back to the upload stage: bring the sidebar back so the drop zone is visible.
     setIsSidebarOpen(true);
+    setActiveTab('summary');
+
+    if (clearNotepad) {
+      try {
+        localStorage.removeItem('learnmate_lab_notepad');
+      } catch {
+        // ignore
+      }
+    }
   };
 
   return (
-    <div className="flex h-screen w-full bg-gray-50 text-gray-900 font-sans">
-      {/* DOCUMENT SIDEBAR (collapsible) */}
+    <div className="relative flex h-screen w-full bg-gray-50 text-gray-900 font-sans overflow-hidden">
+      {/* DOCUMENT & IDEATION SIDEBAR (collapsible / responsive) */}
       {isSidebarOpen && (
-        <aside className="flex w-1/2 shrink-0 flex-col border-r border-gray-200 bg-white">
-          <header className="p-4 border-b border-gray-200 flex items-center space-x-2">
-            <BookOpen className="text-blue-600 h-6 w-6" />
-            <h2 className="text-xl font-bold tracking-tight">LearnMate</h2>
-            {file && (
-              <span className="ml-auto truncate rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 max-w-[260px]">
-                {file.name}
-              </span>
-            )}
+        <aside className="fixed inset-y-0 left-0 z-30 flex w-full md:w-80 lg:w-96 shrink-0 flex-col border-r border-gray-200 bg-white shadow-lg md:relative md:shadow-none transition-all">
+          <header className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <BookOpen className="text-blue-600 h-6 w-6" />
+              <h2 className="text-xl font-bold tracking-tight">LearnMate</h2>
+            </div>
+            {/* Close button on mobile */}
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(false)}
+              className="md:hidden rounded p-1 text-gray-500 hover:bg-gray-100"
+            >
+              <PanelLeftClose className="h-5 w-5" />
+            </button>
           </header>
 
-          <main className="flex-1 p-8 flex flex-col items-center justify-center relative overflow-y-auto">
+          <main className="flex-1 p-5 flex flex-col justify-start relative overflow-y-auto space-y-4">
             {!file ? (
-              <FileUpload onFileSelect={handleFileSelect} />
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                    Option 1: Study Document
+                  </span>
+                  <FileUpload onFileSelect={handleFileSelect} />
+                </div>
+
+                <div className="relative flex items-center justify-center py-2">
+                  <div className="border-t border-gray-200 w-full" />
+                  <span className="bg-white px-2 text-[11px] font-semibold text-gray-400 uppercase">
+                    Or Ideate Directly
+                  </span>
+                </div>
+
+                {/* Option 2: Reason With Me Pitch Card */}
+                <div className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50/70 via-purple-50/40 to-blue-50/60 p-4 space-y-2.5 shadow-sm">
+                  <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs uppercase tracking-wide">
+                    <Sparkles className="h-4 w-4 text-indigo-600" />
+                    <span>Reason With Me</span>
+                  </div>
+                  <p className="text-xs text-gray-700 leading-relaxed">
+                    Have an idea for a machine, robot, circuit, or CAD mechanism? Speak or type it — we will evaluate feasibility, write FreeCAD/AutoCAD code, and generate a 2D interactive blueprint.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setIsReasonModalOpen(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition"
+                  >
+                    <Mic className="h-3.5 w-3.5" />
+                    <span>Speak or Pitch an Idea</span>
+                  </button>
+                </div>
+              </div>
             ) : (
-              <div className="w-full max-w-md bg-gray-50 rounded-xl border-2 border-gray-200 p-8 flex items-center justify-center flex-col relative overflow-hidden shadow-sm">
+              <div className="w-full bg-gray-50 rounded-xl border border-gray-200 p-5 flex items-center justify-center flex-col relative overflow-hidden shadow-sm">
                 <FileText
-                  className={`h-16 w-16 mb-4 ${
+                  className={`h-12 w-12 mb-3 ${
                     isProcessing
                       ? 'text-blue-400 animate-pulse'
                       : error
@@ -331,18 +394,18 @@ export default function Workspace() {
                   }`}
                 />
 
-                <p className="text-gray-900 font-semibold text-lg text-center truncate w-full px-4">
+                <p className="text-gray-900 font-semibold text-sm text-center truncate w-full px-2">
                   {file.name}
                 </p>
 
                 {isProcessing ? (
-                  <div className="mt-4 flex items-center space-x-2 text-blue-600 font-medium">
+                  <div className="mt-3 flex items-center space-x-2 text-blue-600 font-medium text-xs">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span>Analyzing document...</span>
                   </div>
                 ) : error ? (
-                  <div className="flex flex-col items-center">
-                    <p className="text-sm text-red-600 mt-2 font-medium bg-red-50 px-3 py-1 rounded-full border border-red-200">
+                  <div className="flex flex-col items-center mt-2">
+                    <p className="text-xs text-red-600 font-medium bg-red-50 px-2.5 py-1 rounded-full border border-red-200">
                       Analysis Failed
                     </p>
                     <button
@@ -353,94 +416,142 @@ export default function Workspace() {
                     </button>
                   </div>
                 ) : analysis ? (
-                  <div className="flex flex-col items-center gap-2 mt-2">
-                    <p className="text-sm text-green-600 font-medium bg-green-50 px-3 py-1 rounded-full border border-green-200">
-                      Analysis Complete
+                  <div className="flex flex-col items-center gap-1.5 mt-2">
+                    <p className="text-xs text-green-700 font-medium bg-green-50 px-2.5 py-0.5 rounded-full border border-green-200">
+                      ✓ Analysis Complete
                     </p>
                     {isIndexingRag ? (
-                      <div className="flex items-center gap-1.5 text-xs text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100 animate-pulse font-medium">
+                      <div className="flex items-center gap-1.5 text-[11px] text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100 animate-pulse font-medium">
                         <Loader2 className="h-3 w-3 animate-spin" />
-                        <span>Indexing System Studio Graph...</span>
+                        <span>Indexing Studio Graph...</span>
                       </div>
                     ) : ragError ? (
                       <button
                         onClick={handleRetryRag}
                         className="text-xs text-amber-600 hover:underline flex items-center gap-1 font-medium"
                       >
-                        <RefreshCw className="h-3 w-3" /> Retry Projects RAG Indexing
+                        <RefreshCw className="h-3 w-3" /> Retry RAG Indexing
                       </button>
                     ) : workspaceId ? (
                       <span className="text-[11px] text-gray-500 font-medium">
-                        ✓ System Studio Ready
+                        ✓ Studio Graph Ready
                       </span>
                     ) : null}
                   </div>
                 ) : null}
 
-                <button
-                  onClick={handleRemoveDocument}
-                  disabled={isProcessing}
-                  suppressHydrationWarning
-                  className="mt-8 text-sm text-gray-500 hover:text-red-600 font-medium transition-colors disabled:opacity-50"
-                >
-                  Remove Document
-                </button>
+                <div className="mt-6 flex flex-col gap-2 w-full pt-3 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setIsReasonModalOpen(true)}
+                    className="flex items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/70 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>Reason With Me</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsResetModalOpen(true)}
+                    disabled={isProcessing}
+                    className="text-xs text-gray-500 hover:text-red-600 font-medium transition py-1"
+                  >
+                    Remove Document / Reset
+                  </button>
+                </div>
               </div>
             )}
           </main>
         </aside>
       )}
 
-      {/* MAIN CONTENT — expands to full width when the sidebar is hidden */}
-      <div className="flex min-w-0 flex-1 flex-col bg-gray-50">
-        <header className="relative flex items-stretch border-b border-gray-200 bg-white px-3 pt-3">
-          {/* Sidebar toggle: collapse to full screen / expand to view file status */}
-          <button
-            type="button"
-            onClick={() => setIsSidebarOpen((open) => !open)}
-            suppressHydrationWarning
-            title={isSidebarOpen ? 'Hide document panel' : 'Show document panel'}
-            className="self-center flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-blue-600"
-          >
-            {isSidebarOpen ? (
-              <PanelLeftClose className="h-5 w-5" />
-            ) : (
-              <PanelLeftOpen className="h-5 w-5" />
-            )}
-          </button>
-
-          {/* When the sidebar is hidden, keep the brand and the active file visible */}
-          {!isSidebarOpen && (
-            <div className="min-w-0 self-center flex items-center gap-1.5 pl-0.5">
-              <span className="text-[13px] font-bold tracking-tight text-blue-600">LearnMate</span>
-              {headerDocumentName && (
-                <span className="truncate rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 ml-1 max-w-[240px]">
-                  {headerDocumentName}
-                </span>
+      {/* MAIN VIEWPORT — Expands fully when sidebar is hidden */}
+      <div className="flex min-w-0 flex-1 flex-col bg-gray-50 overflow-hidden">
+        {/* Navigation & Action Header */}
+        <header className="flex items-center justify-between border-b border-gray-200 bg-white px-3 py-2 shrink-0">
+          <div className="flex items-center gap-2">
+            {/* Sidebar Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen((open) => !open)}
+              title={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition"
+            >
+              {isSidebarOpen ? (
+                <PanelLeftClose className="h-4 w-4" />
+              ) : (
+                <PanelLeftOpen className="h-4 w-4" />
               )}
-            </div>
-          )}
+            </button>
 
-          <nav className="flex min-w-0 flex-1 items-stretch justify-center gap-6">
+            {!isSidebarOpen && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-blue-600">LearnMate</span>
+                {headerDocumentName && (
+                  <span className="hidden sm:inline-block truncate max-w-[200px] rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs text-gray-600 font-medium">
+                    {headerDocumentName}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Center Tabs */}
+          <nav className="flex items-center gap-1 sm:gap-4 overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 disabled={tab.isDisabled}
-                suppressHydrationWarning
                 title={tab.title}
-                className={`pb-3 px-2 font-medium flex items-center space-x-2 border-b-2 transition-colors disabled:opacity-50 ${
-                  displayTab === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-800'
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition ${
+                  displayTab === tab.id
+                    ? 'bg-blue-50 text-blue-600 shadow-sm'
+                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-40'
                 }`}
               >
-                <tab.icon className="h-4 w-4" />
-                <span>{tab.label}</span>
+                <tab.icon className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{tab.label}</span>
               </button>
             ))}
           </nav>
+
+          {/* Right Action Utilities: Reason With Me, Notepad, Reset */}
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setIsReasonModalOpen(true)}
+              className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50/70 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition shadow-sm"
+              title="Reason With Me (Voice/Text Ideation)"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+              <span className="hidden md:inline">Reason With Me</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsNotepadOpen(true)}
+              className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition shadow-sm"
+              title="Open Laboratory Notepad"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              <span className="hidden lg:inline">Notepad</span>
+            </button>
+
+            {(file || effectiveWorkspaceId) && (
+              <button
+                type="button"
+                onClick={() => setIsResetModalOpen(true)}
+                className="flex items-center rounded-lg p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition"
+                title="Reset / Delete Previous Learning"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </header>
 
-        <div className="flex-1 min-h-0 p-4 md:p-6 overflow-hidden">
+        {/* Tab Content Display Area */}
+        <div className="flex-1 min-h-0 p-2 sm:p-4 overflow-hidden">
           {error ? (
             <div className="h-full flex items-center justify-center">
               <div className="bg-red-50 border border-red-200 p-6 rounded-xl flex flex-col items-center text-center max-w-sm">
@@ -450,15 +561,27 @@ export default function Workspace() {
               </div>
             </div>
           ) : !file && !effectiveWorkspaceId ? (
-            <div className="h-full flex items-center justify-center text-gray-400">
-              <p>Upload a document to unlock learning tools.</p>
+            <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-6 space-y-3">
+              <Sparkles className="h-12 w-12 text-indigo-400 opacity-60 animate-bounce" />
+              <h3 className="text-base font-bold text-gray-700">Welcome to LearnMate Studio</h3>
+              <p className="text-xs text-gray-500 max-w-md">
+                Upload a lecture/textbook document on the left, or click <strong>Reason With Me</strong> to explore an idea without a document.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsReasonModalOpen(true)}
+                className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-blue-700 transition flex items-center gap-2"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span>Start with Reason With Me</span>
+              </button>
             </div>
           ) : (
             <div
               className={`h-full bg-white border border-gray-200 rounded-xl shadow-sm ${
                 displayTab === 'projects'
-                  ? 'p-3 overflow-hidden flex flex-col'
-                  : 'mx-auto w-full max-w-6xl p-6 overflow-y-auto'
+                  ? 'p-2 overflow-hidden flex flex-col'
+                  : 'mx-auto w-full max-w-5xl p-4 sm:p-6 overflow-y-auto'
               }`}
             >
               <div className={displayTab === 'summary' ? 'block' : 'hidden'}>
@@ -479,12 +602,37 @@ export default function Workspace() {
                   workspaceId={effectiveWorkspaceId}
                   initialTopic={pendingProjectTopic}
                   onTopicConsumed={() => setPendingProjectTopic(null)}
+                  onSendToNotepad={handleAppendToNotepad}
                 />
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* REASON WITH ME MODAL */}
+      <ReasonWithMeModal
+        isOpen={isReasonModalOpen}
+        onClose={() => setIsReasonModalOpen(false)}
+        onLaunchBlueprint={handleLaunchFromReason}
+        onSendToNotepad={handleAppendToNotepad}
+      />
+
+      {/* RESET / DELETE SESSION MODAL */}
+      <ResetConfirmModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onConfirmReset={handleConfirmReset}
+        activeFileName={headerDocumentName}
+      />
+
+      {/* PERSISTENT LABORATORY NOTEPAD DRAWER */}
+      <NotepadDrawer
+        isOpen={isNotepadOpen}
+        onClose={() => setIsNotepadOpen(false)}
+        appendNoteText={appendNoteText}
+        onClearAppendNote={() => setAppendNoteText(null)}
+      />
     </div>
   );
 }
