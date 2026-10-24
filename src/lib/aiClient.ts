@@ -1,29 +1,22 @@
-// Dual AI gateway (provider fallback) with model tiering + response caching.
-//
-// OpenRouter is the primary provider; when it fails — non-OK status such as
-// 402 credit errors, a network exception, or an empty payload — the request
-// is transparently retried against DeepSeek's direct API and the caller is
-// told which provider actually answered.
-//
-// Model tiering keeps token spend aligned with task complexity:
-//   - `simple`:  summarization, flashcards, quizzes — fast/cheap models.
-//   - `complex`: JSON blueprint generation & canvas graphs — high-reasoning
-//                models that can afford long structured output.
-// Tiers are overridable via env (OPENROUTER_SIMPLE_MODEL,
-// OPENROUTER_COMPLEX_MODEL, DEEPSEEK_MODEL, DEEPSEEK_REASONER_MODEL).
-//
-// Response caching: pass a `cacheKey` to store the completion under it and
-// serve identical inputs without a second LLM call (see src/lib/cache.ts).
+// Dual AI gateway (provider fallback) with model tiering, response caching,
+// and Bring-Your-Own-Key / Local Ollama support.
 
 import { cacheGet, cacheSet, DEFAULT_CACHE_TTL_SECONDS } from '@/lib/cache';
 import { callOpenRouterMessages, type ChatMessage } from '@/lib/openrouter';
 
 export type { ChatMessage };
 
-export type AiProvider = 'openrouter' | 'deepseek' | 'cache';
+export type AiProvider = 'openrouter' | 'deepseek' | 'openai' | 'groq' | 'ollama' | 'cache';
 
 /** Task complexity class used to pick the model tier. */
 export type AiComplexity = 'simple' | 'complex';
+
+export interface CustomAiConfig {
+  provider?: 'default' | 'openrouter' | 'openai' | 'groq' | 'anthropic' | 'ollama';
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+}
 
 export interface AiRequest {
   messages: ChatMessage[];
@@ -40,6 +33,8 @@ export interface AiRequest {
   cacheKey?: string;
   /** Cache entry lifetime when `cacheKey` is used. Defaults to 24h. */
   cacheTtlSeconds?: number;
+  /** Custom user-provided AI configuration (Ollama, Groq, OpenAI, or personal key). */
+  customConfig?: CustomAiConfig;
 }
 
 export interface AiResult {
@@ -49,132 +44,137 @@ export interface AiResult {
 
 const DEFAULT_MAX_TOKENS = 3000;
 const DEFAULT_TEMPERATURE = 0.7;
-/**
- * Default output budget for complex tasks: reasoning models can burn 2.5k+
- * tokens thinking before writing a byte of JSON.
- */
 const COMPLEX_DEFAULT_MAX_TOKENS = 6000;
-/**
- * Hard ceiling for `max_tokens`. DeepSeek's chat models cap output around
- * 8k tokens, so nothing above that is ever valid to send — a caller passing
- * 64000 gets clamped instead of a rejected request from both providers.
- */
-const MAX_TOKENS_CEILING = 8000;
-const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
-const DEEPSEEK_TIMEOUT_MS = 45_000;
+const ABSOLUTE_MAX_TOKENS = 8192;
 
-/**
- * Resolves the model to use on each provider for the requested task tier.
- * Exported so JSON-heavy callers (blueprint generator, lab protocol) can
- * route through the full callOpenRouter retry chain directly while still
- * honoring the tier configuration.
- */
+export function clampMaxTokens(
+  raw: number | undefined,
+  complexity: AiComplexity,
+): number {
+  const fallback = complexity === 'complex' ? COMPLEX_DEFAULT_MAX_TOKENS : DEFAULT_MAX_TOKENS;
+  const target = Number.isFinite(raw) && (raw as number) > 0 ? (raw as number) : fallback;
+  return Math.min(Math.max(1, Math.floor(target)), ABSOLUTE_MAX_TOKENS);
+}
+
 export function getAiModelForComplexity(complexity: AiComplexity): {
   openrouter: string;
   deepseek: string;
 } {
-  if (complexity === 'complex') {
-    return {
-      // High-reasoning free model for canvas/blueprint generation. It thinks
-      // in a reasoning channel, so callers must budget ≥ 6k output tokens.
-      openrouter: process.env.OPENROUTER_COMPLEX_MODEL || 'nvidia/nemotron-3.5-super-vl:free',
-      deepseek: process.env.DEEPSEEK_REASONER_MODEL || 'deepseek-reasoner',
-    };
-  }
-  return {
-    // Fast/cheap default for summarization, flashcards, quizzes.
-    openrouter: process.env.OPENROUTER_SIMPLE_MODEL || 'openrouter/free',
-    deepseek: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
-  };
+  const isComplex = complexity === 'complex';
+  const openrouter = isComplex
+    ? process.env.OPENROUTER_COMPLEX_MODEL ||
+      process.env.OPENROUTER_MODEL ||
+      'openrouter/auto'
+    : process.env.OPENROUTER_SIMPLE_MODEL ||
+      process.env.OPENROUTER_MODEL ||
+      'openrouter/free';
+
+  const deepseek = isComplex
+    ? process.env.DEEPSEEK_REASONER_MODEL || process.env.DEEPSEEK_MODEL || 'deepseek-reasoner'
+    : process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+
+  return { openrouter, deepseek };
 }
 
-/** Clamps a requested token budget into (0, MAX_TOKENS_CEILING]. */
-function clampMaxTokens(maxTokens: number | undefined, complexity: AiComplexity): number {
-  const fallback =
-    complexity === 'complex' && maxTokens === undefined ? COMPLEX_DEFAULT_MAX_TOKENS : maxTokens;
-  const requested = Number(fallback ?? DEFAULT_MAX_TOKENS);
-  if (!Number.isFinite(requested) || requested <= 0) return DEFAULT_MAX_TOKENS;
-  return Math.min(Math.floor(requested), MAX_TOKENS_CEILING);
-}
-
-function toMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-/** Reads `error.message` out of a provider's JSON error body when present. */
-function extractErrorMessage(body: string): string {
+function toMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
   try {
-    const parsed = JSON.parse(body) as { error?: { message?: string } };
-    if (parsed?.error?.message) return parsed.error.message;
+    return JSON.stringify(err);
   } catch {
-    // Body is not JSON; fall through to the raw text.
+    return String(err);
   }
-  return body;
 }
 
-/** Direct DeepSeek chat-completions call (the fallback leg). */
+/** Calls an OpenAI-compatible completion endpoint (Ollama, Groq, OpenAI, or direct OpenRouter). */
+async function callOpenAiCompatible(
+  endpoint: string,
+  apiKey: string | undefined,
+  model: string,
+  messages: ChatMessage[],
+  maxTokens: number,
+  temperature: number,
+): Promise<string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 75_000);
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model,
+        messages,
+        max_tokens: maxTokens,
+        temperature,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`Endpoint returned HTTP ${res.status}: ${errText.slice(0, 300)}`);
+    }
+
+    const data = await res.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (typeof content !== 'string' || !content.trim()) {
+      throw new Error('Received empty content from AI provider.');
+    }
+
+    return content.trim();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function callDeepSeek(
   messages: ChatMessage[],
   model: string,
   maxTokens: number,
   temperature: number,
 ): Promise<string> {
-  const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
+  const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY is not set in the environment.');
+    throw new Error('DEEPSEEK_API_KEY is not configured in the environment.');
   }
 
-  const response = await fetch(DEEPSEEK_API_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      max_tokens: maxTokens,
-      temperature,
-    }),
-    signal: AbortSignal.timeout(DEEPSEEK_TIMEOUT_MS),
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`DeepSeek API error (${response.status}): ${extractErrorMessage(body)}`);
-  }
-
-  const data = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string | null } }>;
-  };
-  const content = data.choices?.[0]?.message?.content;
-
-  if (!content || !content.trim()) {
-    throw new Error('DeepSeek API returned no usable content.');
-  }
-
-  return content;
+  const endpoint = `${(process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/, '')}/chat/completions`;
+  return callOpenAiCompatible(endpoint, apiKey, model, messages, maxTokens, temperature);
 }
 
-/**
- * Calls OpenRouter first and falls back to DeepSeek's direct API, honoring
- * the task's model tier and optional response cache.
- *
- * @param request - Chat messages, optional `maxTokens` (default 3000, clamped
- * to a safe ceiling; complex tasks default to 6000), `temperature` (default
- * 0.7), `complexity` tier (default 'simple'), and an optional `cacheKey`.
- * @returns The completion text and which provider produced it.
- * @throws A single readable error naming both providers' failures, thrown
- * only when OpenRouter *and* DeepSeek have both failed.
- */
+/** Parses the optional x-custom-ai-config header sent by the client. */
+export function extractCustomAiConfig(request: Request): CustomAiConfig | undefined {
+  try {
+    const headerVal = request.headers.get('x-custom-ai-config');
+    if (headerVal) {
+      const parsed = JSON.parse(headerVal);
+      if (typeof parsed === 'object' && parsed !== null) {
+        return parsed as CustomAiConfig;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
 export async function callAiWithFallback(request: AiRequest): Promise<AiResult> {
-  const { messages } = request;
+  const { messages, customConfig } = request;
   const complexity: AiComplexity = request.complexity === 'complex' ? 'complex' : 'simple';
   const maxTokens = clampMaxTokens(request.maxTokens, complexity);
   const temperature = Number.isFinite(request.temperature)
     ? (request.temperature as number)
     : DEFAULT_TEMPERATURE;
 
+  // Check cache first
   if (request.cacheKey) {
     try {
       const cached = await cacheGet<string>(request.cacheKey);
@@ -182,10 +182,71 @@ export async function callAiWithFallback(request: AiRequest): Promise<AiResult> 
         return { content: cached, provider: 'cache' };
       }
     } catch {
-      // Cache failures must never block a live generation.
+      // cache failures do not block live generation
     }
   }
 
+  // 1. Try Custom Bring-Your-Own Provider if configured by user
+  if (customConfig && customConfig.provider && customConfig.provider !== 'default') {
+    try {
+      if (customConfig.provider === 'ollama') {
+        const baseUrl = (customConfig.baseUrl || 'http://localhost:11434').replace(/\/+$/, '');
+        const model = customConfig.model || 'llama3';
+        const content = await callOpenAiCompatible(
+          `${baseUrl}/v1/chat/completions`,
+          undefined,
+          model,
+          messages,
+          maxTokens,
+          temperature,
+        );
+        return { content, provider: 'ollama' };
+      }
+
+      if (customConfig.provider === 'groq' && customConfig.apiKey) {
+        const model = customConfig.model || 'llama-3.3-70b-versatile';
+        const content = await callOpenAiCompatible(
+          'https://api.groq.com/openai/v1/chat/completions',
+          customConfig.apiKey,
+          model,
+          messages,
+          maxTokens,
+          temperature,
+        );
+        return { content, provider: 'groq' };
+      }
+
+      if (customConfig.provider === 'openai' && customConfig.apiKey) {
+        const model = customConfig.model || 'gpt-4o-mini';
+        const content = await callOpenAiCompatible(
+          'https://api.openai.com/v1/chat/completions',
+          customConfig.apiKey,
+          model,
+          messages,
+          maxTokens,
+          temperature,
+        );
+        return { content, provider: 'openai' };
+      }
+
+      if (customConfig.provider === 'openrouter' && customConfig.apiKey) {
+        const model = customConfig.model || 'openrouter/auto';
+        const content = await callOpenAiCompatible(
+          'https://openrouter.ai/api/v1/chat/completions',
+          customConfig.apiKey,
+          model,
+          messages,
+          maxTokens,
+          temperature,
+        );
+        return { content, provider: 'openrouter' };
+      }
+    } catch (customErr) {
+      console.warn(`[aiClient] Custom provider (${customConfig.provider}) failed, falling back to tiered default:`, toMessage(customErr));
+    }
+  }
+
+  // 2. Default OpenRouter Tier
   const tierModels = getAiModelForComplexity(complexity);
   let openrouterError: unknown;
 
@@ -194,9 +255,6 @@ export async function callAiWithFallback(request: AiRequest): Promise<AiResult> 
       model: tierModels.openrouter,
       maxTokens,
       temperature,
-      // A reasoning trace is a thinking process, never the answer: reject it
-      // so this attempt fails over to the next provider instead of shipping
-      // prose to a JSON-parsing caller.
       useReasoningFallback: false,
     });
     if (request.cacheKey) {
@@ -215,6 +273,7 @@ export async function callAiWithFallback(request: AiRequest): Promise<AiResult> 
     );
   }
 
+  // 3. DeepSeek Fallback
   try {
     const content = await callDeepSeek(messages, tierModels.deepseek, maxTokens, temperature);
     if (request.cacheKey) {

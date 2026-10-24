@@ -124,9 +124,15 @@ export default function ReasonWithMeModal({
     setAnalysis(null);
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      try {
+        const customAi = localStorage.getItem('learnmate_custom_ai_config');
+        if (customAi) headers['x-custom-ai-config'] = customAi;
+      } catch {}
+
       const res = await fetch('/api/reason', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ idea: text }),
       });
 

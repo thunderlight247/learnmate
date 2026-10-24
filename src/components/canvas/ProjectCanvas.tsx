@@ -264,9 +264,15 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
     async (modeToFetch: LabTrackMode = labMode) => {
       setLoadingLab(true);
       try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        try {
+          const customAi = localStorage.getItem('learnmate_custom_ai_config');
+          if (customAi) headers['x-custom-ai-config'] = customAi;
+        } catch {}
+
         const res = await fetch('/api/projects/lab', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             projectId: project.id,
             workspaceId: workspaceId || 'default-workspace',

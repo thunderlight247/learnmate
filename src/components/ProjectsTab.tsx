@@ -15,6 +15,8 @@ interface ProjectsTabProps {
   onTopicConsumed?: () => void;
   /** Optional handler to append content into the persistent laboratory notepad */
   onSendToNotepad?: (content: string) => void;
+  /** Explicit project selected from the Project Library */
+  selectedProject?: GeneratedProject | null;
 }
 
 export default function ProjectsTab({
@@ -22,6 +24,7 @@ export default function ProjectsTab({
   initialTopic,
   onTopicConsumed,
   onSendToNotepad,
+  selectedProject,
 }: ProjectsTabProps) {
   const [topic, setTopic] = useState('');
   const [project, setProject] = useState<GeneratedProject | null>(null);
@@ -30,6 +33,12 @@ export default function ProjectsTab({
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const consumedTopicRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (selectedProject) {
+      setProject(selectedProject);
+    }
+  }, [selectedProject]);
 
   // Load any previously persisted blueprints for this workspace
   useEffect(() => {

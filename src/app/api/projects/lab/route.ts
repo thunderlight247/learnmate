@@ -7,7 +7,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { searchSimilarChunks } from '@/lib/embeddings';
-import { callAiWithFallback } from '@/lib/aiClient';
+import { callAiWithFallback, extractCustomAiConfig } from '@/lib/aiClient';
 import { contentCacheKey } from '@/lib/cache';
 import type {
   HandsOnLabProtocol,
@@ -480,6 +480,7 @@ function buildEmpiricalFallback(topic: string, components: string[]): EmpiricalL
 
 export async function POST(request: Request) {
   try {
+    const customConfig = extractCustomAiConfig(request);
     const body = (await request.json()) as {
       projectId?: string;
       workspaceId?: string;
@@ -559,6 +560,7 @@ Create a rigorous, highly specialized ${mode.toUpperCase()} protocol for this to
         ],
         complexity: 'complex',
         cacheKey: contentCacheKey(`lab_v2:${workspaceId}:${mode}`, userPrompt),
+        customConfig,
       });
 
       const cleaned = aiResponse

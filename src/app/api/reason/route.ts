@@ -4,7 +4,7 @@
 // formulates a step-by-step implementation guide, and prepares blueprint parameters.
 
 import { NextResponse } from 'next/server';
-import { callAiWithFallback } from '@/lib/aiClient';
+import { callAiWithFallback, extractCustomAiConfig } from '@/lib/aiClient';
 import { contentCacheKey } from '@/lib/cache';
 
 export interface FeasibilityRoadmapStep {
@@ -152,6 +152,7 @@ function buildFallbackReasoning(idea: string): ReasonWithMeResponse {
 
 export async function POST(request: Request) {
   try {
+    const customConfig = extractCustomAiConfig(request);
     const body = (await request.json()) as {
       idea?: string;
       targetTool?: string;
@@ -182,6 +183,7 @@ Evaluate this idea objectively. Give a scientifically grounded reality check, ex
         ],
         complexity: 'complex',
         cacheKey: contentCacheKey('reason_with_me', userPrompt),
+        customConfig,
       });
 
       const cleaned = aiResponse

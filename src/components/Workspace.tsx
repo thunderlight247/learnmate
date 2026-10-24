@@ -1,7 +1,7 @@
 'use client';
 
 // Main dashboard shell that owns the uploaded document state, "Reason With Me" ideation,
-// and coordinates the learning tabs with adaptive responsive layouts.
+// Project Library manager, Settings (Bring-Your-Own-Key / Ollama), and coordinates learning tabs.
 import { useSyncExternalStore, useState, useCallback } from 'react';
 import {
   AlertCircle,
@@ -18,6 +18,8 @@ import {
   Trash2,
   Mic,
   Maximize2,
+  FolderOpen,
+  Settings,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import FileUpload from '@/components/FileUpload';
@@ -28,7 +30,12 @@ import ProjectsTab from '@/components/ProjectsTab';
 import ReasonWithMeModal from '@/components/ReasonWithMeModal';
 import ResetConfirmModal from '@/components/ResetConfirmModal';
 import NotepadDrawer from '@/components/NotepadDrawer';
+import SettingsModal from '@/components/SettingsModal';
+import ProjectLibraryModal from '@/components/ProjectLibraryModal';
 import { DocumentAnalysis } from '@/types';
+import type { ProjectGenerationResponse } from '@/types/canvas';
+
+type Project = ProjectGenerationResponse['project'];
 
 /** localStorage key holding the last active workspace across page reloads. */
 const ACTIVE_WORKSPACE_KEY = 'learnmate_active_workspace';
@@ -39,9 +46,6 @@ interface SavedWorkspace {
   savedAt: string | null;
 }
 
-/**
- * External store wrapper around the saved-workspace entry.
- */
 const workspaceStore = (() => {
   let snapshot: SavedWorkspace | null | undefined;
   const listeners = new Set<() => void>();
@@ -128,11 +132,14 @@ export default function Workspace() {
   const [ragError, setRagError] = useState<boolean>(false);
   const [isIndexingRag, setIsIndexingRag] = useState<boolean>(false);
   const [pendingProjectTopic, setPendingProjectTopic] = useState<string | null>(null);
+  const [selectedLibraryProject, setSelectedLibraryProject] = useState<Project | null>(null);
 
   // Modals & Drawers
   const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isNotepadOpen, setIsNotepadOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false);
   const [appendNoteText, setAppendNoteText] = useState<string | null>(null);
 
   const savedWorkspace = useSyncExternalStore(
@@ -168,6 +175,7 @@ export default function Workspace() {
   ];
 
   const handleBuildProject = (topic: string) => {
+    setSelectedLibraryProject(null);
     setPendingProjectTopic(topic);
     setActiveTab('projects');
   };
@@ -197,10 +205,25 @@ export default function Workspace() {
   const handleLaunchFromReason = async (topic: string) => {
     const wsId = await ensureWorkspaceId();
     if (wsId) {
+      setSelectedLibraryProject(null);
       setPendingProjectTopic(topic);
       setActiveTab('projects');
-      setIsSidebarOpen(false); // Give the canvas maximum room
+      setIsSidebarOpen(false);
     }
+  };
+
+  const handleSelectProjectFromLibrary = (proj: Project) => {
+    setSelectedLibraryProject(proj);
+    setPendingProjectTopic(null);
+    setActiveTab('projects');
+    setIsSidebarOpen(false);
+  };
+
+  const handleNewBlueprintFromLibrary = () => {
+    setSelectedLibraryProject(null);
+    setPendingProjectTopic(null);
+    setActiveTab('projects');
+    setIsSidebarOpen(false);
   };
 
   const ensureProcessedDocument = async (selectedFile: File): Promise<string | null> => {
@@ -313,6 +336,7 @@ export default function Workspace() {
     setIsIndexingRag(false);
     setWorkspaceId(null);
     setPendingProjectTopic(null);
+    setSelectedLibraryProject(null);
     workspaceStore.clear();
     setIsSidebarOpen(true);
     setActiveTab('summary');
@@ -487,7 +511,7 @@ export default function Workspace() {
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-blue-600">LearnMate</span>
                 {headerDocumentName && (
-                  <span className="hidden sm:inline-block truncate max-w-[200px] rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs text-gray-600 font-medium">
+                  <span className="hidden sm:inline-block truncate max-w-[180px] rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs text-gray-600 font-medium">
                     {headerDocumentName}
                   </span>
                 )}
@@ -515,8 +539,20 @@ export default function Workspace() {
             ))}
           </nav>
 
-          {/* Right Action Utilities: Reason With Me, Notepad, Reset */}
+          {/* Right Action Utilities: Library, Reason With Me, Notepad, Settings, Reset */}
           <div className="flex items-center gap-1.5">
+            {/* Project Library Button */}
+            <button
+              type="button"
+              onClick={() => setIsLibraryModalOpen(true)}
+              className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition shadow-sm"
+              title="Open Project Library Manager"
+            >
+              <FolderOpen className="h-3.5 w-3.5 text-blue-600" />
+              <span className="hidden md:inline">Library</span>
+            </button>
+
+            {/* Reason With Me Button */}
             <button
               type="button"
               onClick={() => setIsReasonModalOpen(true)}
@@ -524,9 +560,10 @@ export default function Workspace() {
               title="Reason With Me (Voice/Text Ideation)"
             >
               <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
-              <span className="hidden md:inline">Reason With Me</span>
+              <span className="hidden lg:inline">Reason With Me</span>
             </button>
 
+            {/* Notepad Button */}
             <button
               type="button"
               onClick={() => setIsNotepadOpen(true)}
@@ -534,17 +571,28 @@ export default function Workspace() {
               title="Open Laboratory Notepad"
             >
               <BookOpen className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">Notepad</span>
+              <span className="hidden xl:inline">Notepad</span>
             </button>
 
+            {/* Settings (Bring-Your-Own-Key / Ollama) Button */}
+            <button
+              type="button"
+              onClick={() => setIsSettingsModalOpen(true)}
+              className="flex items-center rounded-lg border border-gray-200 bg-white p-1.5 text-gray-600 hover:bg-gray-50 hover:text-indigo-600 transition shadow-sm"
+              title="AI Settings: Connect Custom Key or Local Ollama"
+            >
+              <Settings className="h-3.5 w-3.5" />
+            </button>
+
+            {/* Reset Session Button */}
             {(file || effectiveWorkspaceId) && (
               <button
                 type="button"
                 onClick={() => setIsResetModalOpen(true)}
-                className="flex items-center rounded-lg p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition"
+                className="flex items-center rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition"
                 title="Reset / Delete Previous Learning"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
@@ -565,16 +613,26 @@ export default function Workspace() {
               <Sparkles className="h-12 w-12 text-indigo-400 opacity-60 animate-bounce" />
               <h3 className="text-base font-bold text-gray-700">Welcome to LearnMate Studio</h3>
               <p className="text-xs text-gray-500 max-w-md">
-                Upload a lecture/textbook document on the left, or click <strong>Reason With Me</strong> to explore an idea without a document.
+                Upload a lecture/textbook document on the left, click <strong>Reason With Me</strong> to explore an idea without a document, or browse your <strong>Project Library</strong>.
               </p>
-              <button
-                type="button"
-                onClick={() => setIsReasonModalOpen(true)}
-                className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-blue-700 transition flex items-center gap-2"
-              >
-                <Sparkles className="h-4 w-4" />
-                <span>Start with Reason With Me</span>
-              </button>
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsReasonModalOpen(true)}
+                  className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-blue-700 transition flex items-center gap-2"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span>Start with Reason With Me</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLibraryModalOpen(true)}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 transition flex items-center gap-2"
+                >
+                  <FolderOpen className="h-4 w-4 text-blue-600" />
+                  <span>Open Library</span>
+                </button>
+              </div>
             </div>
           ) : (
             <div
@@ -603,12 +661,28 @@ export default function Workspace() {
                   initialTopic={pendingProjectTopic}
                   onTopicConsumed={() => setPendingProjectTopic(null)}
                   onSendToNotepad={handleAppendToNotepad}
+                  selectedProject={selectedLibraryProject}
                 />
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* PROJECT & LAB LIBRARY MODAL */}
+      <ProjectLibraryModal
+        isOpen={isLibraryModalOpen}
+        onClose={() => setIsLibraryModalOpen(false)}
+        workspaceId={effectiveWorkspaceId}
+        onSelectProject={handleSelectProjectFromLibrary}
+        onNewBlueprint={handleNewBlueprintFromLibrary}
+      />
+
+      {/* SETTINGS MODAL (Bring-Your-Own-Key / Local Ollama) */}
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+      />
 
       {/* REASON WITH ME MODAL */}
       <ReasonWithMeModal
