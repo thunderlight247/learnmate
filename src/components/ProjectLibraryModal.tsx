@@ -4,11 +4,10 @@
 // Provides a centralized hub to browse, search, categorize, export,
 // and manage all saved blueprint projects and lab protocols.
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   FolderOpen,
   Search,
-  Tag,
   Trash2,
   Download,
   Cpu,
@@ -19,8 +18,6 @@ import {
   Loader2,
   Calendar,
   Package,
-  Activity,
-  Check,
 } from 'lucide-react';
 import type { ProjectGenerationResponse } from '@/types/canvas';
 
@@ -56,29 +53,52 @@ export default function ProjectLibraryModal({
   const [selectedCategory, setSelectedCategory] = useState<SubjectCategory>('All');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const fetchProjects = useCallback(async () => {
-    setLoading(true);
-    try {
-      const url = workspaceId ? `/api/projects?workspaceId=${workspaceId}` : '/api/projects';
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.projects)) {
-          setProjects(data.projects);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load project library:', err);
-    } finally {
-      setLoading(false);
+  // Key for the active library request. When it changes (opened, or workspace switched),
+  // loading is marked during render so the effect below only performs async work.
+  const requestKey = isOpen && workspaceId ? workspaceId : null;
+  const [prevRequestKey, setPrevRequestKey] = useState<string | null>(requestKey);
+  if (requestKey !== prevRequestKey) {
+    setPrevRequestKey(requestKey);
+    if (requestKey) {
+      setLoading(true);
+    } else {
+      setProjects([]);
     }
-  }, [workspaceId]);
+  }
 
   useEffect(() => {
-    if (isOpen) {
-      fetchProjects();
-    }
-  }, [isOpen, fetchProjects]);
+    if (!requestKey) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const url = `/api/projects?workspaceId=${encodeURIComponent(requestKey)}`;
+        const res = await fetch(url);
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          if (Array.isArray(data.projects)) {
+            setProjects(data.projects);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load project library:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [requestKey]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   // Derive Subject Category from project title and component types
   const getProjectCategory = (p: Project): SubjectCategory => {
@@ -165,7 +185,7 @@ export default function ProjectLibraryModal({
       '## 2. Bill of Materials (BOM)',
       '| Item | Quantity | Description | Estimated Cost |',
       '|---|---|---|---|',
-      ...bomItems.map((b: any) => `| ${b.item || 'Part'} | ${b.quantity ?? 1} | ${b.description || 'N/A'} | ${b.estimatedCost || 'N/A'} |`),
+      ...bomItems.map((b: { item?: string; quantity?: number; description?: string; estimatedCost?: string }) => `| ${b.item || 'Part'} | ${b.quantity ?? 1} | ${b.description || 'N/A'} | ${b.estimatedCost || 'N/A'} |`),
       '',
       '## 3. Laboratory Synthesis & Practice',
       'This blueprint is ready for CAD synthesis in FreeCAD / AutoCAD and empirical testing in the LearnMate System Studio.',
