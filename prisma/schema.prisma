@@ -79,6 +79,8 @@ model Project {
   workspaceId      String
   title            String
   billOfMaterials  Json
+  assemblyProgress Json?
+  assemblyRevision Int      @default(0)
   createdAt        DateTime @default(now())
   workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   nodes            CanvasNode[]

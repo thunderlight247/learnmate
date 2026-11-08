@@ -9,11 +9,20 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const workspaceId = searchParams.get('workspaceId');
+    const projectId = searchParams.get('projectId');
 
-    const whereClause = workspaceId ? { workspaceId } : {};
+    if (projectId) {
+      const project = await prisma.project.findUnique({ where: { id: projectId }, include: { nodes: true, edges: true } });
+      if (!project) return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
+      return NextResponse.json({ success: true, project });
+    }
+
+    if (!workspaceId) {
+      return NextResponse.json({ error: 'A workspaceId is required.' }, { status: 400 });
+    }
 
     const projects = await prisma.project.findMany({
-      where: whereClause,
+      where: { workspaceId },
       include: {
         nodes: true,
         edges: true,

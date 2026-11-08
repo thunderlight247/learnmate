@@ -9,7 +9,7 @@
 //    - Empirical: Scientific hypothesis testing, variable isolation, and interactive live data logging.
 // 3. Parts & BOM: Bill of Materials with quantities and specs.
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Package,
   Info,
@@ -37,15 +37,7 @@ import {
   Send,
   Loader2,
   Search,
-  BookOpen,
-  CheckCircle2,
   FlaskConical,
-  CheckSquare,
-  Square,
-  Copy,
-  Check,
-  Clock,
-  AlertOctagon,
   RotateCcw,
   PanelRightClose,
   PanelRightOpen,
@@ -55,6 +47,7 @@ import {
 } from 'lucide-react';
 import LearnMateCanvas from './LearnMateCanvas';
 import VirtualLabWorkbench from './VirtualLabWorkbench';
+import VirtualAssembly from './VirtualAssembly';
 import EmpiricalLabWorkbench from './EmpiricalLabWorkbench';
 import PhysicalLabWorkbench from './PhysicalLabWorkbench';
 import {
@@ -127,8 +120,10 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
 
   // Hands-on lab guide state
   const [labProtocol, setLabProtocol] = useState<HandsOnLabProtocol | null>(null);
+  const [labFallback, setLabFallback] = useState(false);
   const [loadingLab, setLoadingLab] = useState(false);
   const [labMode, setLabMode] = useState<LabTrackMode>('simulation');
+  const [labSection, setLabSection] = useState<'build' | 'guide'>('build');
 
   // Parse Bill of Materials
   const bom = useMemo<BomItem[]>(() => {
@@ -164,6 +159,8 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
         ? props.damageEffect
         : undefined;
 
+    // The four keys below are shown separately; omit them from the generic specs list.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { label: _l, role: _r, importance: _i, damageEffect: _d, ...rawSpecs } = props;
 
     return {
@@ -283,6 +280,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
 
         const data = await res.json();
         if (data.lab) {
+          setLabFallback(data.providerUsed === 'fallback');
           setLabProtocol(data.lab);
         }
       } catch (err) {
@@ -293,13 +291,6 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
     },
     [project.id, project.title, workspaceId, labMode],
   );
-
-  // Auto-fetch lab protocol on first click into lab tab
-  useEffect(() => {
-    if (activeTab === 'lab' && !labProtocol && !loadingLab) {
-      fetchLabProtocol(labMode);
-    }
-  }, [activeTab, labProtocol, loadingLab, fetchLabProtocol, labMode]);
 
   const handleDownloadFullReport = () => {
     const lines: string[] = [
@@ -400,7 +391,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
   return (
     <div className="relative flex h-full min-h-[500px] overflow-hidden flex-col md:flex-row gap-0 md:gap-3">
       {/* 2D Interactive Diagram Surface */}
-      <div className="min-w-0 flex-1 relative h-44 sm:h-64 md:h-full">
+      <div className={`min-w-0 flex-1 relative h-44 sm:h-64 md:h-full ${activeTab === 'lab' && !isInspectorCollapsed ? 'md:hidden' : ''}`}>
         <LearnMateCanvas
           project={project}
           selectedNodeId={selectedNodeId}
@@ -422,7 +413,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
 
       {/* Side Inspector, Hands-On Lab, & BOM Panel */}
       {!isInspectorCollapsed && (
-        <aside className="flex w-full md:w-[360px] lg:w-[420px] shrink-0 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <aside className={`flex w-full shrink-0 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm ${activeTab === 'lab' ? 'md:flex-1 md:min-w-0' : 'md:w-[360px] lg:w-[420px]'}`}>
           {/* Header Navigation Tabs with Collapse Button */}
           <div className="flex items-center border-b border-gray-200 bg-gray-50 px-1 py-1.5 gap-0.5">
             <button
@@ -452,9 +443,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
             >
               <FlaskConical className="h-4 w-4 text-indigo-500 shrink-0" />
               <span className="truncate">Hands-On Lab</span>
-              <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700 shrink-0">
-                Live
-              </span>
+
             </button>
 
             <button
@@ -673,6 +662,11 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
           {/* TAB 2: SPECIALIZED HANDS-ON LABS */}
           {activeTab === 'lab' && (
             <div className="flex flex-1 flex-col overflow-y-auto p-4 space-y-4">
+              <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3" aria-label="Lab sections">
+                <button type="button" onClick={() => setLabSection('build')} className={`rounded-lg px-4 py-2 text-sm font-semibold ${labSection === 'build' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>Build &amp; practice</button>
+                <button type="button" onClick={() => { setLabSection('guide'); if (!labProtocol && !loadingLab) fetchLabProtocol(labMode); }} className={`rounded-lg px-4 py-2 text-sm font-semibold ${labSection === 'guide' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>Lab guides &amp; CAD tools</button>
+              </div>
+              {labSection === 'build' ? <VirtualAssembly project={project} /> : <>
               {/* Header Title & Track Switcher */}
               <div className="rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50/90 to-blue-50/60 p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
@@ -715,7 +709,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                       }`}
                     >
                       {mode === 'simulation'
-                        ? '💻 Virtual CAD'
+                        ? '💻 Virtual tools'
                         : mode === 'hardware'
                         ? '🛠️ Physical'
                         : '🔬 Empirical'}
@@ -724,6 +718,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                 </div>
               </div>
 
+              {labFallback && !loadingLab && <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">AI generation failed. This is generic example guidance, not a project-specific protocol.</p>}
               {loadingLab ? (
                 <div className="flex h-64 flex-col items-center justify-center text-center text-indigo-600">
                   <Loader2 className="h-8 w-8 animate-spin mb-2" />
@@ -755,7 +750,8 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                     />
                   )}
                 </>
-              ) : null}
+              ) : <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Could not load this guide. <button type="button" onClick={() => fetchLabProtocol(labMode)} className="font-semibold underline">Try again</button></div>}
+              </>}
             </div>
           )}
 
