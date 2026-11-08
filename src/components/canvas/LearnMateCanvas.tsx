@@ -59,23 +59,16 @@ export default function LearnMateCanvas({
     [project.edges],
   );
 
-  // ...while the dagre layout replaces them for the default view.
-  const laidOutNodes = useMemo<HardwareNodeType[]>(() => {
-    const positions = computeFlowLayout(initialNodes, initialEdges);
-    return initialNodes.map((node) => {
-      const position = positions.get(node.id);
-      return position ? { ...node, position } : node;
-    });
-  }, [initialNodes, initialEdges]);
-
-  const [nodes, setNodes, onNodesChange] = useNodesState(laidOutNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const rfInstanceRef = useRef<ReactFlowInstance<HardwareNodeType, BlueprintEdge> | null>(null);
   const lastCenteredIdRef = useRef<string | null>(null);
   const nodesRef = useRef<HardwareNodeType[]>(nodes);
-  nodesRef.current = nodes;
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   // Sync selected state into nodes when selectedNodeId changes (loop-free)
   useEffect(() => {
@@ -110,9 +103,9 @@ export default function LearnMateCanvas({
   // Re-seed xyflow state whenever the underlying blueprint changes
   // (new generation, layout toggle, or manual re-layout).
   useEffect(() => {
-    setNodes(laidOutNodes);
+    setNodes(initialNodes);
     setEdges(initialEdges);
-  }, [laidOutNodes, initialEdges, setNodes, setEdges]);
+  }, [initialNodes, initialEdges, setNodes, setEdges]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange<HardwareNodeType>[]) => onNodesChange(changes),
@@ -153,7 +146,7 @@ export default function LearnMateCanvas({
   }, []);
 
   const handleNodeDragStop: OnNodeDrag<HardwareNodeType> = useCallback(
-    (_event, _node) => {
+    () => {
       // Persist all current node coordinates on drag release
       persistCoordinates(nodes);
     },
@@ -170,7 +163,7 @@ export default function LearnMateCanvas({
     persistCoordinates(updated);
   }, [nodes, edges, setNodes, persistCoordinates]);
 
-  const [showLayouted, setShowLayouted] = useState(true);
+  const [showLayouted, setShowLayouted] = useState(false);
 
   const toggleLayout = useCallback(() => {
     setShowLayouted((value) => {

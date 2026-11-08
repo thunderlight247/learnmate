@@ -11,20 +11,13 @@ import {
   Code,
   Copy,
   Check,
-  Cpu,
   Sliders,
   Activity,
-  ArrowRight,
-  ExternalLink,
   BookOpen,
-  Sparkles,
   Layers,
-  Wrench,
-  AlertCircle,
   Download,
   Volume2,
   VolumeX,
-  Box,
 } from 'lucide-react';
 import Cad3DPreviewer from './Cad3DPreviewer';
 import type { VirtualLabProtocol } from '@/types/lab';
@@ -47,6 +40,7 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
   });
 
   const [activeCadTab, setActiveCadTab] = useState<'freecad' | 'autocad' | 'openscad'>('freecad');
+  const [section, setSection] = useState<'preview' | 'simulator' | 'scripts' | 'guide'>('preview');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [activeSpeakingStep, setActiveSpeakingStep] = useState<number | null>(null);
 
@@ -128,12 +122,28 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
 
   return (
     <div className="space-y-6">
+      <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+        Illustrative preview only: the geometry is a generic enclosure and telemetry uses example formulas, not a validated model of your project. Do not use these values for engineering decisions.
+      </p>
+      <nav className="flex flex-wrap gap-2" aria-label="Virtual lab tools">
+        {([
+          ['preview', 'Example 3D preview'],
+          ['simulator', 'Example simulator'],
+          ['scripts', 'CAD scripts'],
+          ['guide', 'External tool guide'],
+        ] as const).map(([id, label]) => (
+          <button key={id} type="button" onClick={() => setSection(id)} className={`rounded-lg px-3 py-2 text-sm font-semibold ${section === id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{label}</button>
+        ))}
+      </nav>
+      {section === 'preview' && <>
       {/* SECTION 1: IN-BROWSER 3D CAD GEOMETRY PREVIEWER */}
       <Cad3DPreviewer
         title={protocol.title}
         dimensions={{ length: 110, width: 70, height: 40 }}
       />
 
+      </>}
+      {section === 'simulator' && <>
       {/* SECTION 2: IN-BROWSER SIMULATOR WORKBENCH */}
       <div className="rounded-xl border border-indigo-200/80 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b border-indigo-100 bg-gradient-to-r from-indigo-50/80 to-blue-50/50 px-4 py-3">
@@ -150,7 +160,7 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
           </div>
           <span className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 animate-pulse">
             <Activity className="h-3 w-3" />
-            Live Engine Active
+            Illustrative values
           </span>
         </div>
 
@@ -235,6 +245,8 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
         </div>
       </div>
 
+      </>}
+      {section === 'scripts' && <>
       {/* SECTION 3: CAD SCRIPT GENERATOR & ONE-CLICK DOWNLOADS */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         <div className="border-b border-gray-200 bg-gray-50/80 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
@@ -362,6 +374,8 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
         </div>
       </div>
 
+      </>}
+      {section === 'guide' && <>
       {/* SECTION 4: STEP-BY-STEP EXTERNAL SOFTWARE IMPLEMENTATION GUIDE */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-4">
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
@@ -434,6 +448,7 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
           ))}
         </div>
       </div>
+      </>}
     </div>
   );
 }

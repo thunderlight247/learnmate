@@ -15,10 +15,7 @@ import {
   Plus,
   Trash2,
   CheckCircle2,
-  AlertTriangle,
-  RotateCcw,
   BookOpen,
-  Info,
   Scale,
   LineChart,
   Volume2,
@@ -44,7 +41,7 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
   const [trials, setTrials] = useState<UserTrialRow[]>(() =>
     suggestedTrials.map((t) => ({
       ...t,
-      observedVal: (Math.round((t.expectedVal * (0.96 + Math.random() * 0.07)) * 10) / 10).toString(),
+      observedVal: '',
     })),
   );
 
@@ -84,10 +81,12 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
     let ssTot = 0;
     let ssRes = 0;
 
-    const rowMetrics = trials.map((t) => {
+    const rowMetrics: { delta: number | null; percentError: number | null; obsNum: number | null }[] = [];
+    for (const t of trials) {
       const obs = parseFloat(t.observedVal);
       if (isNaN(obs)) {
-        return { delta: null, percentError: null, obsNum: null };
+        rowMetrics.push({ delta: null, percentError: null, obsNum: null });
+        continue;
       }
       filledCount++;
       totalObserved += obs;
@@ -96,8 +95,8 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
         ? Math.round((delta / Math.abs(t.expectedVal)) * 1000) / 10
         : 0;
       totalError += percent;
-      return { delta, percentError: percent, obsNum: obs };
-    });
+      rowMetrics.push({ delta, percentError: percent, obsNum: obs });
+    }
 
     const averageError = filledCount > 0 ? Math.round((totalError / filledCount) * 10) / 10 : null;
     const meanObserved = filledCount > 0 ? totalObserved / filledCount : 0;
@@ -153,7 +152,7 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
 
     // Generate observational points
     const scatterPoints = trials
-      .map((t, idx) => {
+      .map((t) => {
         const obs = parseFloat(t.observedVal);
         if (isNaN(obs)) return null;
         return {
@@ -251,7 +250,7 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
               <span>Null Hypothesis (H₀)</span>
             </div>
             <p className="text-xs text-gray-600 leading-relaxed font-serif italic">
-              "{hypothesisH0}"
+              &quot;{hypothesisH0}&quot;
             </p>
           </div>
 
@@ -261,7 +260,7 @@ export default function EmpiricalLabWorkbench({ protocol, onSendToNotepad }: Emp
               <span>Alternative Hypothesis (H₁)</span>
             </div>
             <p className="text-xs text-indigo-900/90 leading-relaxed font-serif italic">
-              "{hypothesisH1}"
+              &quot;{hypothesisH1}&quot;
             </p>
           </div>
         </div>

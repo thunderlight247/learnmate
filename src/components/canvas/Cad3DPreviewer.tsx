@@ -7,12 +7,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   RotateCcw,
-  Maximize2,
-  Minimize2,
   Box,
   Eye,
-  Sliders,
-  Sparkles,
 } from 'lucide-react';
 
 interface Cad3DPreviewerProps {
@@ -28,7 +24,6 @@ interface Point3D {
 }
 
 export default function Cad3DPreviewer({
-  title,
   dimensions = { length: 120, width: 80, height: 45 },
 }: Cad3DPreviewerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -235,7 +230,7 @@ export default function Cad3DPreviewer({
         <div className="flex items-center gap-1.5 rounded-lg bg-white/90 px-2.5 py-1 shadow-sm backdrop-blur-sm border border-gray-200 pointer-events-auto">
           <Box className="h-3.5 w-3.5 text-indigo-600" />
           <span className="text-[11px] font-bold text-gray-800">
-            3D CAD Parametric Preview
+            Example enclosure preview
           </span>
           <span className="text-[10px] text-gray-400 font-mono">
             {dimensions.length}×{dimensions.width}×{dimensions.height}mm
@@ -297,7 +292,7 @@ export default function Cad3DPreviewer({
       {/* Footer Helper */}
       <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[10px] text-gray-400 pointer-events-none">
         <span>Click &amp; drag to rotate · Scroll to zoom</span>
-        <span className="font-semibold text-indigo-600">FreeCAD / AutoCAD Solis Model</span>
+        <span className="font-semibold text-indigo-600">Generic illustration, not project CAD</span>
       </div>
     </div>
   );
