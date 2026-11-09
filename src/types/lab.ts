@@ -91,6 +91,8 @@ export interface VirtualLabProtocol {
     parameters: SimParameter[];
     telemetryOutputs: SimTelemetryOutput[];
     formulaDisplay: string;
+    // Optional: id of the parameter that drives the 3D model's height. Falls back to the first parameter.
+    geometryParameterId?: string;
   };
   cadExports: CadExports;
   externalSoftwareGuide: {

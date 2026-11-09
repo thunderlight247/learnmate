@@ -82,6 +82,7 @@ Return ONLY a valid JSON object matching this schema:
     "engineName": "e.g. Kinematic & Flow Dynamic Emulator",
     "description": "Explains how the simulation responds to live input changes",
     "formulaDisplay": "e.g. V_out = V_in * (R2 / (R1 + R2))",
+    "geometryParameterId": "param1 (the parameter id that drives the 3D model height)",
     "parameters": [
       { "id": "param1", "label": "Primary Variable", "unit": "V", "defaultValue": 12, "min": 0, "max": 24, "step": 1, "description": "Modulates input force or voltage" }
     ],

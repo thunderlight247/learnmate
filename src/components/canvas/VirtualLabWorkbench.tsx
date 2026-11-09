@@ -42,11 +42,20 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
   const [activeCadTab, setActiveCadTab] = useState<'freecad' | 'autocad' | 'openscad'>('freecad');
   const [section, setSection] = useState<'preview' | 'simulator' | 'scripts' | 'guide'>('preview');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [predictionText, setPredictionText] = useState('');
   const [activeSpeakingStep, setActiveSpeakingStep] = useState<number | null>(null);
 
   const handleParamChange = (id: string, value: number) => {
     setParamValues((prev) => ({ ...prev, [id]: value }));
   };
+
+  // Map the first parameter's range onto a 20-60 mm enclosure height for the preview.
+  const primaryParamForPreview =
+    simulationWorkbench.parameters.find((p) => p.id === simulationWorkbench.geometryParameterId) ??
+    simulationWorkbench.parameters[0];
+  const previewHeight = primaryParamForPreview
+    ? 20 + 40 * ((paramValues[primaryParamForPreview.id] ?? primaryParamForPreview.defaultValue) - primaryParamForPreview.min) / (primaryParamForPreview.max - primaryParamForPreview.min || 1)
+    : 40;
 
   // Calculate live telemetry outputs based on user parameters
   const calculatedTelemetry = useMemo(() => {
@@ -137,9 +146,10 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
       </nav>
       {section === 'preview' && <>
       {/* SECTION 1: IN-BROWSER 3D CAD GEOMETRY PREVIEWER */}
+      {/* The first simulator parameter drives the enclosure height, so the sliders and the 3D model stay linked. */}
       <Cad3DPreviewer
         title={protocol.title}
-        dimensions={{ length: 110, width: 70, height: 40 }}
+        dimensions={{ length: 110, width: 70, height: previewHeight }}
       />
 
       </>}
@@ -220,11 +230,41 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
             </div>
           </div>
 
+          {/* Predict-then-reveal practice: the learner guesses the first output before the readout unlocks. */}
+          {calculatedTelemetry.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+              <label className="block text-xs font-semibold text-amber-900" htmlFor="vlab-predict">
+                Predict first: what will {calculatedTelemetry[0].label} be at {paramValues[simulationWorkbench.parameters[0]?.id ?? ''] ?? '—'} {simulationWorkbench.parameters[0]?.unit ?? ''}?
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  id="vlab-predict"
+                  type="number"
+                  value={predictionText}
+                  onChange={(e) => setPredictionText(e.target.value)}
+                  placeholder="Your guess"
+                  className="w-32 rounded border border-amber-300 bg-white px-2 py-1 text-sm"
+                />
+                <span className="text-xs text-amber-800">
+                  {predictionText.trim() === '' ? 'Enter a guess to reveal the readout.' : 'Readout unlocked.'}
+                </span>
+              </div>
+              {predictionText.trim() !== '' && calculatedTelemetry[0] && (
+                <p className="text-xs text-amber-900" data-testid="vlab-compare">
+                  Your guess: {predictionText} {calculatedTelemetry[0].unit}. Model (illustrative): {calculatedTelemetry[0].calculatedValue} {calculatedTelemetry[0].unit}. Difference: {Math.round((Number(predictionText) - calculatedTelemetry[0].calculatedValue) * 10) / 10} {calculatedTelemetry[0].unit}.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Real-time Telemetry Dashboard */}
           <div className="space-y-2 pt-2 border-t border-gray-100">
             <h5 className="text-xs font-bold uppercase tracking-wider text-gray-500">
               Live Calculated Telemetry Readout
             </h5>
+            {predictionText.trim() === '' ? (
+              <p className="text-sm text-gray-500">Make your prediction above to see the readout.</p>
+            ) : (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {calculatedTelemetry.map((tel) => (
                 <div
@@ -241,6 +281,7 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
                 </div>
               ))}
             </div>
+            )}
           </div>
         </div>
       </div>
