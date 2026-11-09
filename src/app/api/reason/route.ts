@@ -209,7 +209,7 @@ Evaluate this idea objectively. Give a scientifically grounded reality check, ex
     }
 
     const fallback = buildFallbackReasoning(idea);
-    return NextResponse.json({ success: true, analysis: fallback });
+    return NextResponse.json({ success: true, fallback: true, analysis: fallback });
   } catch (err: unknown) {
     console.error('Reason API Error:', err);
     const message = err instanceof Error ? err.message : 'Failed to reason with idea.';

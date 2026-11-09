@@ -175,7 +175,7 @@ export async function callAiWithFallback(request: AiRequest): Promise<AiResult> 
     : DEFAULT_TEMPERATURE;
 
   // Check cache first
-  if (request.cacheKey) {
+  if (request.cacheKey && (!customConfig?.provider || customConfig.provider === 'default')) {
     try {
       const cached = await cacheGet<string>(request.cacheKey);
       if (cached !== null && typeof cached === 'string') {
@@ -241,8 +241,9 @@ export async function callAiWithFallback(request: AiRequest): Promise<AiResult> 
         );
         return { content, provider: 'openrouter' };
       }
+      throw new Error('Unsupported provider or missing API key.');
     } catch (customErr) {
-      console.warn(`[aiClient] Custom provider (${customConfig.provider}) failed, falling back to tiered default:`, toMessage(customErr));
+      throw new Error(`Custom AI provider (${customConfig.provider}) failed: ${toMessage(customErr)}`);
     }
   }
 

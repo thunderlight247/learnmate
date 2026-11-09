@@ -387,16 +387,13 @@ export async function generateBlueprint(
   topic: string,
   prisma: PrismaClient,
 ): Promise<GeneratedProject> {
-  const chunks = await searchSimilarChunks(
-    topic,
-    workspaceId,
-    CONTEXT_CHUNKS,
-  );
+  const hasDocuments = await prisma.document.count({ where: { workspaceId, status: 'COMPLETED' } });
+  const chunks = hasDocuments
+    ? await searchSimilarChunks(topic, workspaceId, CONTEXT_CHUNKS)
+    : [];
 
-  if (chunks.length === 0) {
-    throw new Error(
-      'No processed documents found in this workspace for that topic. Upload and process a PDF first.',
-    );
+  if (hasDocuments && chunks.length === 0) {
+    throw new Error('No indexed passages found for this workspace. Please retry document indexing.');
   }
 
   const context = chunks
@@ -406,7 +403,9 @@ export async function generateBlueprint(
     )
     .join('\n\n---\n\n');
 
-  const userPrompt = buildBlueprintUserPrompt(topic, context);
+  const userPrompt = chunks.length
+    ? buildBlueprintUserPrompt(topic, context)
+    : `Design a hands-on project for the topic "${topic}" using general engineering knowledge. No lecture document was provided.`;
 
   // Free models are inconsistent: some answer in `reasoning`, some get cut
   // off mid-object, some wrap the JSON in prose. Parse failures therefore

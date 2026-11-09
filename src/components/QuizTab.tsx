@@ -29,6 +29,7 @@ export default function QuizTab({ rawText }: QuizTabProps) {
     setError(null);
     setSubmitted(false);
     setSelectedAnswers({});
+    setQuestions(null);
 
     try {
       const response = await fetch('/api/quiz', {
@@ -174,4 +175,4 @@ export default function QuizTab({ rawText }: QuizTabProps) {
       )}
     </div>
   );
-}
+}

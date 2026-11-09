@@ -7,22 +7,32 @@
 // and allows instant one-click blueprint launch into System Studio.
 
 import { useState, useEffect, useRef } from 'react';
+
+type SpeechRecognitionResultLike = { 0?: { transcript: string } };
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: (event: { results: SpeechRecognitionResultLike[] }) => void;
+  onerror: () => void;
+  onend: () => void;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 import {
   Sparkles,
   Mic,
   MicOff,
-  Send,
   Loader2,
   X,
   CheckCircle2,
-  AlertTriangle,
   Layers,
   ArrowRight,
   BookOpen,
   Cpu,
-  Info,
   Scale,
-  Wrench,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -43,13 +53,18 @@ export default function ReasonWithMeModal({
 }: ReasonWithMeModalProps) {
   const [ideaText, setIdeaText] = useState('');
   const [isListening, setIsListening] = useState(false);
-  const [speechSupported, setSpeechSupported] = useState(false);
+  const [speechSupported] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const w = window as unknown as { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor };
+    return !!(w.SpeechRecognition || w.webkitSpeechRecognition);
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [analysis, setAnalysis] = useState<ReasonWithMeResponse | null>(null);
+  const [isFallback, setIsFallback] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSpeakingVerdict, setIsSpeakingVerdict] = useState(false);
 
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const toggleSpeakVerdict = () => {
     if (typeof window === 'undefined' || !window.speechSynthesis || !analysis) return;
@@ -70,16 +85,15 @@ export default function ReasonWithMeModal({
   // Check Web Speech API support
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const w = window as unknown as { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor };
+      const SpeechRecognition = w.SpeechRecognition || w.webkitSpeechRecognition;
       if (SpeechRecognition) {
-        setSpeechSupported(true);
         const recog = new SpeechRecognition();
         recog.continuous = false;
         recog.interimResults = false;
         recog.lang = 'en-US';
 
-        recog.onresult = (event: any) => {
+        recog.onresult = (event) => {
           const transcript = event.results[0]?.[0]?.transcript;
           if (transcript) {
             setIdeaText((prev) => (prev ? `${prev} ${transcript}` : transcript));
@@ -141,6 +155,7 @@ export default function ReasonWithMeModal({
         throw new Error(data.error || 'Failed to analyze idea.');
       }
 
+      setIsFallback(data.fallback === true);
       setAnalysis(data.analysis);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
@@ -304,6 +319,7 @@ export default function ReasonWithMeModal({
           {/* Analysis Result */}
           {analysis && (
             <div className="space-y-5 pt-3 border-t border-gray-100">
+              {isFallback && <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">AI analysis failed. This is generic example guidance, not an evaluation of your idea; please retry.</p>}
               {/* Header Title & Verdict */}
               <div className="rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50/80 to-blue-50/40 p-4 flex flex-wrap items-center justify-between gap-3">
                 <div>

@@ -24,7 +24,7 @@ export async function POST(request: Request) {
         }
         const tagsData = await tagsRes.json();
         const models = Array.isArray(tagsData.models)
-          ? tagsData.models.map((m: any) => m.name)
+          ? tagsData.models.map((m: { name: string }) => m.name)
           : [];
 
         const latency = Date.now() - startTime;

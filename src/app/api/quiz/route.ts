@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { callAiWithFallback } from '@/lib/aiClient';
-import { contentCacheKey } from '@/lib/cache';
 
 // Quiz route contract: expects { context } in JSON and returns a quiz payload in the UI shape.
 // The model is instructed to return strict JSON so the frontend can parse it safely.
@@ -33,9 +32,7 @@ Return ONLY valid JSON matching this exact structure:
 }
 `.trim();
 
-    // Quiz generation is a lightweight structured task: route through the
-    // gateway on the fast/cheap model tier, with a cached response for
-    // identical documents so refreshes don't spend tokens twice.
+    // Generate a fresh quiz each time; validate before returning it.
     const { content: aiResponse, provider: providerUsed } = await callAiWithFallback({
       messages: [
         { role: 'system', content: systemPrompt },
@@ -45,7 +42,7 @@ Return ONLY valid JSON matching this exact structure:
         },
       ],
       complexity: 'simple',
-      cacheKey: contentCacheKey('quiz', context),
+
     });
 
     const cleanedResponse = aiResponse
@@ -54,12 +51,23 @@ Return ONLY valid JSON matching this exact structure:
       .replace(/\s*```$/i, '')
       .trim();
 
-    const parsed = JSON.parse(cleanedResponse);
+    const parsed: unknown = JSON.parse(cleanedResponse);
+    const questions = (parsed as { questions?: unknown })?.questions;
+    if (!Array.isArray(questions) || questions.length !== 5 || !questions.every((q: unknown) => {
+      if (!q || typeof q !== 'object') return false;
+      const item = q as Record<string, unknown>;
+      return typeof item.question === 'string' && Array.isArray(item.options) &&
+        item.options.length === 4 && item.options.every((option: unknown) => typeof option === 'string') &&
+        typeof item.correctAnswerIndex === 'number' && Number.isInteger(item.correctAnswerIndex) &&
+        item.correctAnswerIndex >= 0 && item.correctAnswerIndex < 4 && typeof item.explanation === 'string';
+    })) {
+      throw new Error('The AI returned an invalid quiz. Please try again.');
+    }
 
-    return NextResponse.json({ quiz: parsed.questions, providerUsed });
+    return NextResponse.json({ quiz: questions, providerUsed });
   } catch (error: unknown) {
     console.error('Quiz API Error:', error);
     const message = error instanceof Error ? error.message : 'Failed to generate quiz.';
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+}
