@@ -11,9 +11,10 @@ interface Message {
 
 interface ChatTabProps {
   rawText: string | null;
+  workspaceId: string | null;
 }
 
-export default function ChatTab({ rawText }: ChatTabProps) {
+export default function ChatTab({ rawText, workspaceId }: ChatTabProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -40,17 +41,16 @@ export default function ChatTab({ rawText }: ChatTabProps) {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: userMessage,
-          context: rawText,
-        }),
+        body: JSON.stringify(workspaceId
+          ? { message: userMessage, workspaceId, history: messages.slice(-10) }
+          : { question: userMessage, context: rawText }),
       });
 
       const data = await response.json();
 
       if (!response.ok) throw new Error(data.error || 'Failed to get answer');
 
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.answer }]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: data.response ?? data.answer }]);
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'An error occurred';
       setMessages((prev) => [
@@ -134,4 +134,4 @@ export default function ChatTab({ rawText }: ChatTabProps) {
       </form>
     </div>
   );
-}
+}

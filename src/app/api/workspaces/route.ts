@@ -18,21 +18,11 @@ export async function POST() {
       create: { email: DEMO_USER_EMAIL, name: 'Demo Student' },
     });
 
-    // One active workspace per demo user keeps blueprint context focused on
-    // the documents they actually uploaded.
-    const workspace = await prisma.workspace.findFirst({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
+    // A fresh workspace prevents a new document from inheriting old chunks.
+    // This does not replace authentication or authorize access to the data.
+    const active = await prisma.workspace.create({
+      data: { userId: user.id, name: 'My Study Workspace' },
     });
-
-    const active =
-      workspace ??
-      (await prisma.workspace.create({
-        data: {
-          userId: user.id,
-          name: 'My Study Workspace',
-        },
-      }));
 
     return NextResponse.json({
       success: true,

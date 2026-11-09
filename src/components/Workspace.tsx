@@ -2,7 +2,7 @@
 
 // Main dashboard shell that owns the uploaded document state, "Reason With Me" ideation,
 // Project Library manager, Settings (Bring-Your-Own-Key / Ollama), and coordinates learning tabs.
-import { useSyncExternalStore, useState, useCallback } from 'react';
+import { useSyncExternalStore, useState, useCallback, useRef, useEffect } from 'react';
 import {
   AlertCircle,
   BookOpen,
@@ -17,7 +17,6 @@ import {
   Sparkles,
   Trash2,
   Mic,
-  Maximize2,
   FolderOpen,
   Settings,
 } from 'lucide-react';
@@ -41,9 +40,11 @@ type Project = ProjectGenerationResponse['project'];
 const ACTIVE_WORKSPACE_KEY = 'learnmate_active_workspace';
 
 interface SavedWorkspace {
-  workspaceId: string;
+  workspaceId: string | null;
   fileName: string | null;
   savedAt: string | null;
+  analysis: DocumentAnalysis | null;
+  rawText: string | null;
 }
 
 const workspaceStore = (() => {
@@ -56,17 +57,14 @@ const workspaceStore = (() => {
       if (!saved) return null;
 
       const parsed = JSON.parse(saved) as Partial<SavedWorkspace> | null;
-      const wsId = typeof parsed?.workspaceId === 'string' ? parsed.workspaceId.trim() : '';
-      if (!wsId) {
-        if (saved.trim()) {
-          window.localStorage.removeItem(ACTIVE_WORKSPACE_KEY);
-        }
-        return null;
-      }
+      const wsId = typeof parsed?.workspaceId === 'string' ? parsed.workspaceId.trim() : null;
+      const analysis = parsed?.analysis;
       return {
-        workspaceId: wsId,
+        workspaceId: wsId || null,
         fileName: typeof parsed?.fileName === 'string' ? parsed.fileName : null,
         savedAt: typeof parsed?.savedAt === 'string' ? parsed.savedAt : null,
+        analysis: analysis && typeof analysis.summary === 'string' && Array.isArray(analysis.keyConcepts) && Array.isArray(analysis.importantTopics) ? analysis : null,
+        rawText: typeof parsed?.rawText === 'string' ? parsed.rawText : null,
       };
     } catch {
       return null;
@@ -91,20 +89,17 @@ const workspaceStore = (() => {
     getServerSnapshot(): null {
       return null;
     },
-    write(entry: { workspaceId: string; fileName: string | null }): void {
+    write(entry: Partial<SavedWorkspace>): void {
+      const next: SavedWorkspace = {
+        workspaceId: null, fileName: null, analysis: null, rawText: null,
+        ...snapshot, ...entry, savedAt: new Date().toISOString(),
+      };
       try {
-        window.localStorage.setItem(
-          ACTIVE_WORKSPACE_KEY,
-          JSON.stringify({
-            workspaceId: entry.workspaceId,
-            fileName: entry.fileName,
-            savedAt: new Date().toISOString(),
-          }),
-        );
+        window.localStorage.setItem(ACTIVE_WORKSPACE_KEY, JSON.stringify(next));
       } catch {
-        // best-effort
+        console.warn('Could not save the study session in browser storage.');
       }
-      snapshot = read();
+      snapshot = next;
       notify();
     },
     clear(): void {
@@ -124,6 +119,7 @@ export default function Workspace() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const [file, setFile] = useState<File | null>(null);
+  const sessionGeneration = useRef(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [rawText, setRawText] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<DocumentAnalysis | null>(null);
@@ -150,8 +146,11 @@ export default function Workspace() {
 
   const effectiveWorkspaceId = workspaceId ?? savedWorkspace?.workspaceId ?? null;
 
+  const effectiveAnalysis = analysis ?? savedWorkspace?.analysis ?? null;
+  const effectiveRawText = rawText ?? savedWorkspace?.rawText ?? null;
+  const hasDocument = !!file || !!effectiveAnalysis;
   const displayTab =
-    activeTab === 'summary' && !file && effectiveWorkspaceId ? 'projects' : activeTab;
+    activeTab === 'summary' && !hasDocument && effectiveWorkspaceId ? 'projects' : activeTab;
 
   const headerDocumentName = file?.name ?? savedWorkspace?.fileName ?? null;
 
@@ -162,9 +161,9 @@ export default function Workspace() {
     isDisabled: boolean;
     title?: string;
   }> = [
-    { id: 'summary', label: 'Summary', icon: FileText, isDisabled: !file },
-    { id: 'chat', label: 'Ask AI', icon: MessageSquare, isDisabled: !file || isProcessing },
-    { id: 'quiz', label: 'Quiz', icon: HelpCircle, isDisabled: !file || isProcessing },
+    { id: 'summary', label: 'Summary', icon: FileText, isDisabled: !hasDocument },
+    { id: 'chat', label: 'Ask AI', icon: MessageSquare, isDisabled: !hasDocument || isProcessing },
+    { id: 'quiz', label: 'Quiz', icon: HelpCircle, isDisabled: !hasDocument || isProcessing },
     {
       id: 'projects',
       label: 'Projects Studio',
@@ -213,11 +212,31 @@ export default function Workspace() {
   };
 
   const handleSelectProjectFromLibrary = (proj: Project) => {
+    setWorkspaceId(proj.workspaceId);
     setSelectedLibraryProject(proj);
     setPendingProjectTopic(null);
     setActiveTab('projects');
     setIsSidebarOpen(false);
   };
+
+  useEffect(() => {
+    const projectId = new URLSearchParams(window.location.search).get('project');
+    if (!projectId) return;
+    const controller = new AbortController();
+    fetch(`/api/projects?projectId=${encodeURIComponent(projectId)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || !data.project) throw new Error(data.error || 'Could not open this project.');
+        setWorkspaceId(data.project.workspaceId);
+        setSelectedLibraryProject(data.project);
+        setActiveTab('projects');
+        setIsSidebarOpen(false);
+      })
+      .catch((err: unknown) => {
+        if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Could not open this project.');
+      });
+    return () => controller.abort();
+  }, []);
 
   const handleNewBlueprintFromLibrary = () => {
     setSelectedLibraryProject(null);
@@ -253,7 +272,6 @@ export default function Workspace() {
         return null;
       }
 
-      workspaceStore.write({ workspaceId: wsId, fileName: selectedFile.name });
       return wsId;
     } catch (err: unknown) {
       console.error('Document processing failed:', err);
@@ -262,6 +280,9 @@ export default function Workspace() {
   };
 
   const handleFileSelect = async (selectedFile: File) => {
+    const generation = ++sessionGeneration.current;
+    workspaceStore.clear();
+    setRawText(null);
     setFile(selectedFile);
     setIsProcessing(true);
     setIsIndexingRag(true);
@@ -273,18 +294,21 @@ export default function Workspace() {
 
     ensureProcessedDocument(selectedFile)
       .then((wsId) => {
+        if (sessionGeneration.current !== generation) return;
         if (wsId) {
           setWorkspaceId(wsId);
+          workspaceStore.write({ workspaceId: wsId, fileName: selectedFile.name });
         } else {
           setRagError(true);
         }
       })
       .catch((err) => {
+        if (sessionGeneration.current !== generation) return;
         console.error('Background RAG indexing failed:', err);
         setRagError(true);
       })
       .finally(() => {
-        setIsIndexingRag(false);
+        if (sessionGeneration.current === generation) setIsIndexingRag(false);
       });
 
     try {
@@ -298,36 +322,44 @@ export default function Workspace() {
         throw new Error(data.error || 'Failed to analyze document');
       }
 
+      if (sessionGeneration.current !== generation) return;
       setAnalysis(data.data);
       setRawText(data.rawText);
+      workspaceStore.write({ fileName: selectedFile.name, analysis: data.data, rawText: data.rawText });
       setIsSidebarOpen(false);
     } catch (err: unknown) {
+      if (sessionGeneration.current !== generation) return;
       const errorMsg = err instanceof Error ? err.message : 'An unexpected error occurred.';
       setError(errorMsg);
       setAnalysis(null);
       setRawText(null);
     } finally {
-      setIsProcessing(false);
+      if (sessionGeneration.current === generation) setIsProcessing(false);
     }
   };
 
   const handleRetryRag = async () => {
     if (!file) return;
+    const generation = sessionGeneration.current;
     setRagError(false);
     setIsIndexingRag(true);
     try {
       const wsId = await ensureProcessedDocument(file);
+      if (sessionGeneration.current !== generation) return;
       if (wsId) {
         setWorkspaceId(wsId);
+        workspaceStore.write({ workspaceId: wsId, fileName: file.name });
       } else {
         setRagError(true);
       }
     } finally {
-      setIsIndexingRag(false);
+      if (sessionGeneration.current === generation) setIsIndexingRag(false);
     }
   };
 
   const handleConfirmReset = ({ clearNotepad }: { clearNotepad: boolean }) => {
+    sessionGeneration.current++;
+    setIsProcessing(false);
     setFile(null);
     setAnalysis(null);
     setRawText(null);
@@ -381,7 +413,7 @@ export default function Workspace() {
           </header>
 
           <main className="flex-1 px-5 py-5 flex flex-col justify-start overflow-y-auto space-y-5">
-            {!file ? (
+            {!hasDocument ? (
               <div className="space-y-5">
                 <div className="space-y-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
@@ -404,7 +436,7 @@ export default function Workspace() {
                     <span>Reason With Me</span>
                   </div>
                   <p className="text-sm text-gray-600 leading-relaxed">
-                    Have an idea for a machine, robot, circuit, or CAD mechanism? Speak or type it — we'll evaluate feasibility, write FreeCAD/AutoCAD code, and generate a 2D interactive blueprint.
+                    Have an idea for a machine, robot, circuit, or CAD mechanism? Speak or type it — we&apos;ll evaluate feasibility, write FreeCAD/AutoCAD code, and generate a 2D interactive blueprint.
                   </p>
                   <button
                     type="button"
@@ -429,7 +461,7 @@ export default function Workspace() {
                 />
 
                 <p className="text-gray-900 font-semibold text-sm text-center truncate w-full px-2">
-                  {file.name}
+                  {headerDocumentName}
                 </p>
 
                 {isProcessing ? (
@@ -443,13 +475,14 @@ export default function Workspace() {
                       Analysis Failed
                     </p>
                     <button
+                      disabled={!file}
                       onClick={() => file && handleFileSelect(file)}
                       className="text-sm text-blue-600 hover:underline flex items-center gap-1.5 font-medium"
                     >
                       <RefreshCw className="h-3.5 w-3.5" /> Retry Analysis
                     </button>
                   </div>
-                ) : analysis ? (
+                ) : effectiveAnalysis ? (
                   <div className="flex flex-col items-center gap-2">
                     <p className="text-sm text-green-700 font-medium bg-green-50 px-3 py-1 rounded-full border border-green-200">
                       ✓ Analysis Complete
@@ -459,7 +492,7 @@ export default function Workspace() {
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         <span>Indexing Studio Graph…</span>
                       </div>
-                    ) : ragError ? (
+                    ) : ragError && file ? (
                       <button
                         onClick={handleRetryRag}
                         className="text-sm text-amber-600 hover:underline flex items-center gap-1.5 font-medium"
@@ -486,7 +519,6 @@ export default function Workspace() {
 
                   <button
                     onClick={() => setIsResetModalOpen(true)}
-                    disabled={isProcessing}
                     className="text-sm text-gray-400 hover:text-red-500 font-medium transition py-1.5 text-center"
                   >
                     Remove Document / Reset
@@ -595,7 +627,7 @@ export default function Workspace() {
             </button>
 
             {/* Reset Session Button */}
-            {(file || effectiveWorkspaceId) && (
+            {(hasDocument || effectiveWorkspaceId) && (
               <button
                 type="button"
                 onClick={() => setIsResetModalOpen(true)}
@@ -618,7 +650,7 @@ export default function Workspace() {
                 <p className="text-sm text-red-600">{error}</p>
               </div>
             </div>
-          ) : !file && !effectiveWorkspaceId ? (
+          ) : !hasDocument && !effectiveWorkspaceId ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-6 sm:p-10 space-y-5">
               <Sparkles className="h-14 w-14 text-indigo-400 opacity-60 animate-bounce" />
               <div className="space-y-2">
@@ -658,16 +690,16 @@ export default function Workspace() {
             >
               <div className={displayTab === 'summary' ? 'block' : 'hidden'}>
                 <SummaryTab
-                  analysis={analysis}
+                  analysis={effectiveAnalysis}
                   isProcessing={isProcessing}
                   onBuildProject={effectiveWorkspaceId ? handleBuildProject : undefined}
                 />
               </div>
               <div className={displayTab === 'chat' ? 'block' : 'hidden'}>
-                <ChatTab rawText={rawText} />
+                <ChatTab key={headerDocumentName ?? 'none'} rawText={effectiveRawText} workspaceId={effectiveWorkspaceId} />
               </div>
               <div className={displayTab === 'quiz' ? 'block' : 'hidden'}>
-                <QuizTab rawText={rawText} />
+                <QuizTab key={headerDocumentName ?? 'none'} rawText={effectiveRawText} />
               </div>
               <div className={displayTab === 'projects' ? 'flex flex-1 min-h-0 flex-col' : 'hidden'}>
                 <ProjectsTab

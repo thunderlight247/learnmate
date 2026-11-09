@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, Sparkles, AlertCircle, Cpu, Plus, Layers, FlaskConical } from 'lucide-react';
+import { Loader2, Sparkles, AlertCircle, Cpu, Plus, Layers } from 'lucide-react';
 import ProjectCanvas from '@/components/canvas/ProjectCanvas';
 import type { ProjectGenerationResponse } from '@/types/canvas';
 
@@ -34,11 +34,11 @@ export default function ProjectsTab({
   const [error, setError] = useState<string | null>(null);
   const consumedTopicRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (selectedProject) {
-      setProject(selectedProject);
-    }
-  }, [selectedProject]);
+  const [prevSelectedProject, setPrevSelectedProject] = useState(selectedProject);
+  if (selectedProject !== prevSelectedProject) {
+    setPrevSelectedProject(selectedProject);
+    if (selectedProject) setProject(selectedProject);
+  }
 
   // Load any previously persisted blueprints for this workspace
   useEffect(() => {
@@ -120,6 +120,7 @@ export default function ProjectsTab({
       setTopic(initialTopic);
       onTopicConsumed?.();
       generateFromTopic(initialTopic);
+      consumedTopicRef.current = null;
     }
   }, [initialTopic, workspaceId, loading, onTopicConsumed, generateFromTopic]);
 
@@ -170,6 +171,7 @@ export default function ProjectsTab({
 
         <div className="min-h-0 flex-1">
           <ProjectCanvas
+            key={project.id}
             project={project}
             workspaceId={workspaceId}
             onSendToNotepad={onSendToNotepad}
@@ -249,7 +251,7 @@ export default function ProjectsTab({
           <Layers className="h-10 w-10 text-gray-300" />
           <p className="text-sm font-medium text-gray-600">No blueprint generated yet</p>
           <p className="text-xs text-gray-400 max-w-sm">
-            Enter a topic above or click "Build a Project" from the document summary or "Reason With Me" ideation.
+            Enter a topic above or click &quot;Build a Project&quot; from the document summary or &quot;Reason With Me&quot; ideation.
           </p>
         </div>
       )}

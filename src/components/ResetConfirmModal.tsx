@@ -5,7 +5,7 @@
 // giving users clear choice to reset their active session, document, or local studio state.
 
 import { useState } from 'react';
-import { AlertTriangle, Trash2, X, RefreshCw } from 'lucide-react';
+import { Trash2, X } from 'lucide-react';
 
 interface ResetConfirmModalProps {
   isOpen: boolean;
@@ -49,7 +49,7 @@ export default function ResetConfirmModal({
         <p className="text-xs text-gray-600 leading-relaxed">
           {activeFileName ? (
             <>
-              This will remove the current document <strong className="text-gray-900">"{activeFileName}"</strong> and reset your active study session back to the clean workspace.
+              This will close the current document <strong className="text-gray-900">&ldquo;{activeFileName}&rdquo;</strong> and clear the active session from this browser. Previously indexed data and projects remain on the server.
             </>
           ) : (
             'This will reset your current learning canvas and study session back to the clean workspace.'
