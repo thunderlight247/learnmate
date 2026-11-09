@@ -9,6 +9,7 @@ import { prisma } from '@/lib/prisma';
 import { searchSimilarChunks } from '@/lib/embeddings';
 import { callAiWithFallback, extractCustomAiConfig } from '@/lib/aiClient';
 import { contentCacheKey } from '@/lib/cache';
+import { normalizeGeometryParameter } from '@/lib/lab-geometry';
 import type {
   HandsOnLabProtocol,
   LabTrackMode,
@@ -479,6 +480,7 @@ function buildEmpiricalFallback(topic: string, components: string[]): EmpiricalL
 
 // ==================== ROUTE HANDLER ====================
 
+
 export async function POST(request: Request) {
   try {
     const customConfig = extractCustomAiConfig(request);
@@ -579,6 +581,10 @@ Create a rigorous, highly specialized ${mode.toUpperCase()} protocol for this to
           : cleaned;
 
       const parsed = JSON.parse(jsonCandidate) as HandsOnLabProtocol;
+
+      if (parsed && parsed.mode === 'simulation') {
+        normalizeGeometryParameter(parsed);
+      }
 
       if (parsed && typeof parsed.title === 'string' && parsed.mode === mode) {
         return NextResponse.json({ success: true, providerUsed, lab: parsed });
