@@ -20,6 +20,7 @@ import {
   VolumeX,
 } from 'lucide-react';
 import Cad3DPreviewer from './Cad3DPreviewer';
+import { previewHeightFor } from '@/lib/lab-geometry';
 import type { VirtualLabProtocol } from '@/types/lab';
 
 interface VirtualLabWorkbenchProps {
@@ -49,12 +50,20 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
     setParamValues((prev) => ({ ...prev, [id]: value }));
   };
 
-  // Map the first parameter's range onto a 20-60 mm enclosure height for the preview.
+  // Map the chosen parameter's range onto a 20-60 mm enclosure height for the preview.
+  // The learner can pick a different parameter in the preview section (item 6).
+  const [geometryParamId, setGeometryParamId] = useState<string | undefined>(
+    simulationWorkbench.geometryParameterId,
+  );
   const primaryParamForPreview =
-    simulationWorkbench.parameters.find((p) => p.id === simulationWorkbench.geometryParameterId) ??
+    simulationWorkbench.parameters.find((p) => p.id === geometryParamId) ??
     simulationWorkbench.parameters[0];
   const previewHeight = primaryParamForPreview
-    ? 20 + 40 * ((paramValues[primaryParamForPreview.id] ?? primaryParamForPreview.defaultValue) - primaryParamForPreview.min) / (primaryParamForPreview.max - primaryParamForPreview.min || 1)
+    ? previewHeightFor(
+        paramValues[primaryParamForPreview.id] ?? primaryParamForPreview.defaultValue,
+        primaryParamForPreview.min,
+        primaryParamForPreview.max,
+      )
     : 40;
 
   // Calculate live telemetry outputs based on user parameters
@@ -146,7 +155,21 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
       </nav>
       {section === 'preview' && <>
       {/* SECTION 1: IN-BROWSER 3D CAD GEOMETRY PREVIEWER */}
-      {/* The first simulator parameter drives the enclosure height, so the sliders and the 3D model stay linked. */}
+      {/* The selected simulator parameter drives the enclosure height, so the sliders and the 3D model stay linked. */}
+      {simulationWorkbench.parameters.length > 1 && (
+        <label className="flex items-center gap-2 text-xs font-semibold text-gray-600">
+          3D height driven by
+          <select
+            value={primaryParamForPreview?.id ?? ''}
+            onChange={(e) => setGeometryParamId(e.target.value)}
+            className="rounded border border-gray-300 bg-white px-2 py-1 text-xs"
+          >
+            {simulationWorkbench.parameters.map((p) => (
+              <option key={p.id} value={p.id}>{p.label}</option>
+            ))}
+          </select>
+        </label>
+      )}
       <Cad3DPreviewer
         title={protocol.title}
         dimensions={{ length: 110, width: 70, height: previewHeight }}
@@ -251,7 +274,7 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
               </div>
               {predictionText.trim() !== '' && calculatedTelemetry[0] && (
                 <p className="text-xs text-amber-900" data-testid="vlab-compare">
-                  Your guess: {predictionText} {calculatedTelemetry[0].unit}. Model (illustrative): {calculatedTelemetry[0].calculatedValue} {calculatedTelemetry[0].unit}. Difference: {Math.round((Number(predictionText) - calculatedTelemetry[0].calculatedValue) * 10) / 10} {calculatedTelemetry[0].unit}.
+                  Your guess: {predictionText} {calculatedTelemetry[0].unit}. Model (illustrative, not measured data): {calculatedTelemetry[0].calculatedValue} {calculatedTelemetry[0].unit}. Difference: {Math.round((Number(predictionText) - calculatedTelemetry[0].calculatedValue) * 10) / 10} {calculatedTelemetry[0].unit}.
                 </p>
               )}
             </div>
