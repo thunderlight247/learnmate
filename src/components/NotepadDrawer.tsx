@@ -4,7 +4,7 @@
 // Persists notes to localStorage across browser reloads.
 // Allows learners to capture equations, CAD snippets, empirical trial tables, and AI insights.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useSyncExternalStore } from 'react';
 import {
   BookOpen,
   X,
@@ -12,8 +12,6 @@ import {
   Check,
   Download,
   Trash2,
-  FileText,
-  Sparkles,
 } from 'lucide-react';
 
 interface NotepadDrawerProps {
@@ -25,52 +23,72 @@ interface NotepadDrawerProps {
 
 const NOTEPAD_STORAGE_KEY = 'learnmate_lab_notepad';
 
+// Reads localStorage through useSyncExternalStore so the first client render
+// matches the server render (empty notes) and the saved notes load afterwards.
+const notepadStore = (() => {
+  let snapshot: string | undefined;
+  const listeners = new Set<() => void>();
+
+  return {
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    getSnapshot(): string {
+      if (snapshot === undefined) {
+        try {
+          snapshot = localStorage.getItem(NOTEPAD_STORAGE_KEY) ?? '';
+        } catch {
+          snapshot = '';
+        }
+      }
+      return snapshot;
+    },
+    getServerSnapshot(): string {
+      return '';
+    },
+    set(value: string) {
+      snapshot = value;
+      try {
+        localStorage.setItem(NOTEPAD_STORAGE_KEY, value);
+      } catch {
+        // storage quota or private mode
+      }
+      listeners.forEach((listener) => listener());
+    },
+  };
+})();
+
 export default function NotepadDrawer({
   isOpen,
   onClose,
   appendNoteText,
   onClearAppendNote,
 }: NotepadDrawerProps) {
-  const [notes, setNotes] = useState<string>('');
+  const notes = useSyncExternalStore(
+    notepadStore.subscribe,
+    notepadStore.getSnapshot,
+    notepadStore.getServerSnapshot,
+  );
   const [copied, setCopied] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
-
-  // Load from localStorage on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(NOTEPAD_STORAGE_KEY);
-      if (saved) setNotes(saved);
-    } catch {
-      // storage unavailable
-    }
-  }, []);
 
   // Handle incoming appended text from other components
   useEffect(() => {
     if (appendNoteText) {
-      setNotes((prev) => {
-        const divider = prev.trim() ? '\n\n---\n\n' : '';
-        const updated = `${prev}${divider}${appendNoteText}`;
-        try {
-          localStorage.setItem(NOTEPAD_STORAGE_KEY, updated);
-        } catch {
-          // ignore
-        }
-        return updated;
-      });
+      const prev = notepadStore.getSnapshot();
+      const divider = prev.trim() ? '\n\n---\n\n' : '';
+      notepadStore.set(`${prev}${divider}${appendNoteText}`);
       onClearAppendNote?.();
     }
   }, [appendNoteText, onClearAppendNote]);
 
   const handleChange = (val: string) => {
-    setNotes(val);
+    notepadStore.set(val);
     setSaveStatus('saving');
-    try {
-      localStorage.setItem(NOTEPAD_STORAGE_KEY, val);
-      setTimeout(() => setSaveStatus('saved'), 500);
-    } catch {
-      // storage quota or private mode
-    }
+    setTimeout(() => setSaveStatus('saved'), 500);
   };
 
   const handleCopy = () => {
@@ -91,12 +109,7 @@ export default function NotepadDrawer({
 
   const handleClear = () => {
     if (window.confirm('Are you sure you want to clear your laboratory notepad?')) {
-      setNotes('');
-      try {
-        localStorage.removeItem(NOTEPAD_STORAGE_KEY);
-      } catch {
-        // ignore
-      }
+      notepadStore.set('');
     }
   };
 
@@ -169,7 +182,7 @@ export default function NotepadDrawer({
 
       {/* Drawer Footer */}
       <div className="border-t border-gray-200 bg-gray-50 px-4 py-2.5 text-xs text-gray-500 flex items-center justify-between">
-        <span>💡 Use "Send to Notepad" anywhere to pin data</span>
+        <span>💡 Use &quot;Send to Notepad&quot; anywhere to pin data</span>
         <button
           type="button"
           onClick={onClose}

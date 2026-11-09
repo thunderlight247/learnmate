@@ -4,7 +4,7 @@
 // Allows learners to connect their own API key (Groq, OpenAI, OpenRouter) or
 // run 100% offline using Local Ollama for zero-latency, rate-limit-free generations.
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Settings,
   X,
@@ -17,11 +17,11 @@ import {
   EyeOff,
   Cpu,
   AlertCircle,
-  HelpCircle,
 } from 'lucide-react';
 import type { CustomAiConfig } from '@/lib/aiClient';
 
 export const AI_CONFIG_STORAGE_KEY = 'learnmate_custom_ai_config';
+
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -49,21 +49,27 @@ export default function SettingsModal({
     availableModels?: string[];
   } | null>(null);
 
-  // Load saved config on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(AI_CONFIG_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved) as CustomAiConfig;
-        setProvider(parsed.provider || 'default');
-        setApiKey(parsed.apiKey || '');
-        setBaseUrl(parsed.baseUrl || 'http://localhost:11434');
-        setModel(parsed.model || '');
+  // Load the saved config each time the modal opens. This runs during render
+  // (not in an effect) and only after the modal opens, so SSR and the first
+  // client render both show the defaults.
+  const [wasOpen, setWasOpen] = useState(false);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      try {
+        const saved = localStorage.getItem(AI_CONFIG_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved) as CustomAiConfig;
+          setProvider(parsed.provider || 'default');
+          setApiKey(parsed.apiKey || '');
+          setBaseUrl(parsed.baseUrl || 'http://localhost:11434');
+          setModel(parsed.model || '');
+        }
+      } catch {
+        // storage unavailable
       }
-    } catch {
-      // storage unavailable
     }
-  }, []);
+  }
 
   const handleProviderChange = (newProvider: CustomAiConfig['provider']) => {
     setProvider(newProvider);
@@ -213,7 +219,7 @@ export default function SettingsModal({
                     className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                   <span className="text-xs text-gray-400 mt-0.5 block">
-                    Must allow origins or run locally (e.g. OLLAMA_ORIGINS="*" ollama serve)
+                    Must allow origins or run locally (e.g. OLLAMA_ORIGINS=&quot;*&quot; ollama serve)
                   </span>
                 </div>
                 <div>
@@ -266,7 +272,7 @@ export default function SettingsModal({
                     </button>
                   </div>
                   <span className="text-xs text-gray-400 mt-0.5 block">
-                    Saved only in your browser's private localStorage.
+                    Saved only in your browser&apos;s private localStorage.
                   </span>
                 </div>
 
