@@ -107,6 +107,10 @@ const COMPONENT_CONFIGS: Record<CanvasNodeType, ComponentConfig> = {
   default: { icon: Wrench, badgeBg: 'bg-gray-50 text-gray-600 border-gray-200', category: 'Core Structural' },
 };
 
+function labStorageKey(projectId: string, mode: LabTrackMode): string {
+  return `learnmate_lab_${projectId}_${mode}`;
+}
+
 export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }: ProjectCanvasProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'inspector' | 'lab' | 'bom'>('inspector');
@@ -119,8 +123,17 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
   const [aiResponse, setAiResponse] = useState<string | null>(null);
 
   // Hands-on lab guide state
-  const [labProtocol, setLabProtocol] = useState<HandsOnLabProtocol | null>(null);
-  const [labFallback, setLabFallback] = useState(false);
+  // Restore the last saved lab for this project and track, if any (read once at mount).
+  const [savedLab] = useState<{ lab: HandsOnLabProtocol; providerUsed?: string } | null>(() => {
+    try {
+      const raw = localStorage.getItem(labStorageKey(project.id, 'simulation'));
+      return raw ? (JSON.parse(raw) as { lab: HandsOnLabProtocol; providerUsed?: string }) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [labProtocol, setLabProtocol] = useState<HandsOnLabProtocol | null>(savedLab?.lab ?? null);
+  const [labFallback, setLabFallback] = useState(savedLab?.providerUsed === 'fallback');
   const [loadingLab, setLoadingLab] = useState(false);
   const [labMode, setLabMode] = useState<LabTrackMode>('simulation');
   const [labSection, setLabSection] = useState<'build' | 'guide'>('build');
@@ -282,6 +295,9 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
         if (data.lab) {
           setLabFallback(data.providerUsed === 'fallback');
           setLabProtocol(data.lab);
+          try {
+            localStorage.setItem(labStorageKey(project.id, modeToFetch), JSON.stringify({ lab: data.lab, providerUsed: data.providerUsed }));
+          } catch {}
         }
       } catch (err) {
         console.error('Failed to generate hands-on lab protocol:', err);
