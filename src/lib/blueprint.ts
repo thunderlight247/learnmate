@@ -3,7 +3,7 @@
 // Retrieval + OpenRouter + transactional persistence in one callable unit.
 
 import type { Prisma, PrismaClient } from '@prisma/client';
-import { getAiModelForComplexity } from '@/lib/aiClient';
+import { callAiWithFallback, getAiModelForComplexity, type CustomAiConfig } from '@/lib/aiClient';
 import { searchSimilarChunks } from '@/lib/embeddings';
 import { callOpenRouter } from '@/lib/openrouter';
 
@@ -386,6 +386,7 @@ export async function generateBlueprint(
   workspaceId: string,
   topic: string,
   prisma: PrismaClient,
+  customConfig?: CustomAiConfig,
 ): Promise<GeneratedProject> {
   const hasDocuments = await prisma.document.count({ where: { workspaceId, status: 'COMPLETED' } });
   const chunks = hasDocuments
@@ -420,20 +421,35 @@ export async function generateBlueprint(
   for (let attempt = 0; attempt < BLUEPRINT_ATTEMPTS && !blueprint; attempt++) {
     const model = BLUEPRINT_RETRY_MODELS[attempt];
 
+    const attemptPrompt = attempt === 0 ? userPrompt : `${userPrompt}\n\n${BLUEPRINT_RETRY_REMINDER}`;
     let aiResponse: string;
     try {
-      aiResponse = await callOpenRouter(
-        blueprintSystemPrompt,
-        attempt === 0 ? userPrompt : `${userPrompt}\n\n${BLUEPRINT_RETRY_REMINDER}`,
-        {
+      if (customConfig?.provider && customConfig.provider !== 'default') {
+        // User-chosen provider (Ollama, Groq, OpenAI, OpenRouter key): honor it.
+        const result = await callAiWithFallback({
+          messages: [
+            { role: 'system', content: blueprintSystemPrompt },
+            { role: 'user', content: attemptPrompt },
+          ],
+          complexity: 'complex',
           maxTokens: BLUEPRINT_MAX_TOKENS,
-          timeoutMs: BLUEPRINT_TIMEOUT_MS,
-          // A thinking trace is never the blueprint; fail the attempt so the
-          // fallback chain can move to the next model instead.
-          useReasoningFallback: false,
-          ...(model ? { model } : {}),
-        },
-      );
+          customConfig,
+        });
+        aiResponse = result.content;
+      } else {
+        aiResponse = await callOpenRouter(
+          blueprintSystemPrompt,
+          attemptPrompt,
+          {
+            maxTokens: BLUEPRINT_MAX_TOKENS,
+            timeoutMs: BLUEPRINT_TIMEOUT_MS,
+            // A thinking trace is never the blueprint; fail the attempt so the
+            // fallback chain can move to the next model instead.
+            useReasoningFallback: false,
+            ...(model ? { model } : {}),
+          },
+        );
+      }
     } catch (error) {
       lastCallError = error;
       console.warn(

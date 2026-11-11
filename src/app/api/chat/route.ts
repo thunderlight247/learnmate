@@ -8,7 +8,7 @@
 // before the frontend migrates.
 
 import { NextResponse } from 'next/server';
-import { callAiWithFallback, type ChatMessage } from '@/lib/aiClient';
+import { callAiWithFallback, extractCustomAiConfig, type ChatMessage } from '@/lib/aiClient';
 import { contentCacheKey } from '@/lib/cache';
 import { searchSimilarChunks, type SimilarChunk } from '@/lib/embeddings';
 
@@ -115,6 +115,7 @@ ${body.context}
       // Identical question + context are served from cache instead of
       // spending tokens on a duplicate LLM call.
       const { content: answer, provider: providerUsed } = await callAiWithFallback({
+        customConfig: extractCustomAiConfig(request),
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: body.question },
@@ -166,6 +167,7 @@ ${body.context}
     ];
 
     const { content: response, provider: providerUsed } = await callAiWithFallback({
+      customConfig: extractCustomAiConfig(request),
       messages,
       complexity: 'simple',
       // Keyed on the full exchange (question + history + retrieved context):

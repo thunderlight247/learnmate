@@ -5,7 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { callAiWithFallback } from '@/lib/aiClient';
+import { callAiWithFallback, extractCustomAiConfig } from '@/lib/aiClient';
 
 const DEFAULT_COUNT = 5;
 const MAX_COUNT = 20;
@@ -138,6 +138,7 @@ export async function POST(request: Request) {
     // model tier. Deliberately NOT cached — every generation creates fresh
     // Flashcard rows, so a cached payload would silently duplicate cards.
     const { content: aiResponse, provider: providerUsed } = await callAiWithFallback({
+      customConfig: extractCustomAiConfig(request),
       messages: [
         { role: 'system', content: systemPrompt },
         {

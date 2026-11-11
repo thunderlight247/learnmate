@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdfExtractor';
-import { callAiWithFallback } from '@/lib/aiClient';
+import { callAiWithFallback, extractCustomAiConfig } from '@/lib/aiClient';
 import { MAX_FILE_SIZE, MAX_FILE_SIZE_MB } from '@/lib/upload-limits';
 
 // Request contract: multipart/form-data with a PDF file under the field name "file".
@@ -104,6 +104,7 @@ Rules:
     // 500 the UI renders.
     // Do not cache the response before validating its structure.
     const { content: aiContent, provider: providerUsed } = await callAiWithFallback({
+      customConfig: extractCustomAiConfig(request),
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: safeText },

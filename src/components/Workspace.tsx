@@ -9,6 +9,7 @@ import {
   Cpu,
   FileText,
   HelpCircle,
+  Layers,
   Loader2,
   MessageSquare,
   PanelLeftClose,
@@ -25,6 +26,7 @@ import FileUpload from '@/components/FileUpload';
 import SummaryTab from '@/components/SummaryTab';
 import ChatTab from '@/components/ChatTab';
 import QuizTab from '@/components/QuizTab';
+import FlashcardsTab from '@/components/FlashcardsTab';
 import ProjectsTab from '@/components/ProjectsTab';
 import ReasonWithMeModal from '@/components/ReasonWithMeModal';
 import ResetConfirmModal from '@/components/ResetConfirmModal';
@@ -115,7 +117,7 @@ const workspaceStore = (() => {
 })();
 
 export default function Workspace() {
-  const [activeTab, setActiveTab] = useState<'summary' | 'chat' | 'quiz' | 'projects'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'chat' | 'quiz' | 'flashcards' | 'projects'>('summary');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const [file, setFile] = useState<File | null>(null);
@@ -155,7 +157,7 @@ export default function Workspace() {
   const headerDocumentName = file?.name ?? savedWorkspace?.fileName ?? null;
 
   const tabs: Array<{
-    id: 'summary' | 'chat' | 'quiz' | 'projects';
+    id: 'summary' | 'chat' | 'quiz' | 'flashcards' | 'projects';
     label: string;
     icon: LucideIcon;
     isDisabled: boolean;
@@ -164,6 +166,7 @@ export default function Workspace() {
     { id: 'summary', label: 'Summary', icon: FileText, isDisabled: !hasDocument },
     { id: 'chat', label: 'Ask AI', icon: MessageSquare, isDisabled: !hasDocument || isProcessing },
     { id: 'quiz', label: 'Quiz', icon: HelpCircle, isDisabled: !hasDocument || isProcessing },
+    { id: 'flashcards', label: 'Flashcards', icon: Layers, isDisabled: !hasDocument || isProcessing },
     {
       id: 'projects',
       label: 'Projects Studio',
@@ -700,6 +703,9 @@ export default function Workspace() {
               </div>
               <div className={displayTab === 'quiz' ? 'block' : 'hidden'}>
                 <QuizTab key={headerDocumentName ?? 'none'} rawText={effectiveRawText} />
+              </div>
+              <div className={displayTab === 'flashcards' ? 'block' : 'hidden'}>
+                <FlashcardsTab key={headerDocumentName ?? 'none'} workspaceId={effectiveWorkspaceId} />
               </div>
               <div className={displayTab === 'projects' ? 'flex flex-1 min-h-0 flex-col' : 'hidden'}>
                 <ProjectsTab

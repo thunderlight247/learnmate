@@ -40,6 +40,8 @@ import {
   FlaskConical,
   RotateCcw,
   PanelRightClose,
+  Maximize2,
+  Minimize2,
   PanelRightOpen,
   Sliders,
   Download,
@@ -116,6 +118,8 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
   const [activeTab, setActiveTab] = useState<'inspector' | 'lab' | 'bom'>('inspector');
   const [componentSearch, setComponentSearch] = useState('');
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
+  const [isLabExpanded, setIsLabExpanded] = useState(false);
+  const [mobileView, setMobileView] = useState<'blueprint' | 'panel'>('blueprint');
 
   // Inline AI deep-dive query states
   const [aiQuestion, setAiQuestion] = useState('');
@@ -123,17 +127,20 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
   const [aiResponse, setAiResponse] = useState<string | null>(null);
 
   // Hands-on lab guide state
-  // Restore the last saved lab for this project and track, if any (read once at mount).
-  const [savedLab] = useState<{ lab: HandsOnLabProtocol; providerUsed?: string } | null>(() => {
-    try {
-      const raw = localStorage.getItem(labStorageKey(project.id, 'simulation'));
-      return raw ? (JSON.parse(raw) as { lab: HandsOnLabProtocol; providerUsed?: string }) : null;
-    } catch {
-      return null;
+  // Restore the saved lab for each track of this project, if any (read once at mount).
+  type SavedLab = { lab: HandsOnLabProtocol; providerUsed?: string };
+  const [savedLabs, setSavedLabs] = useState<Partial<Record<LabTrackMode, SavedLab>>>(() => {
+    const restored: Partial<Record<LabTrackMode, SavedLab>> = {};
+    for (const mode of ['simulation', 'experiment', 'hardware'] as LabTrackMode[]) {
+      try {
+        const raw = localStorage.getItem(labStorageKey(project.id, mode));
+        if (raw) restored[mode] = JSON.parse(raw) as SavedLab;
+      } catch {}
     }
+    return restored;
   });
-  const [labProtocol, setLabProtocol] = useState<HandsOnLabProtocol | null>(savedLab?.lab ?? null);
-  const [labFallback, setLabFallback] = useState(savedLab?.providerUsed === 'fallback');
+  const [labProtocol, setLabProtocol] = useState<HandsOnLabProtocol | null>(savedLabs.simulation?.lab ?? null);
+  const [labFallback, setLabFallback] = useState(savedLabs.simulation?.providerUsed === 'fallback');
   const [loadingLab, setLoadingLab] = useState(false);
   const [labMode, setLabMode] = useState<LabTrackMode>('simulation');
   const [labSection, setLabSection] = useState<'build' | 'guide'>('build');
@@ -295,6 +302,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
         if (data.lab) {
           setLabFallback(data.providerUsed === 'fallback');
           setLabProtocol(data.lab);
+          setSavedLabs((prev) => ({ ...prev, [modeToFetch]: { lab: data.lab, providerUsed: data.providerUsed } }));
           try {
             localStorage.setItem(labStorageKey(project.id, modeToFetch), JSON.stringify({ lab: data.lab, providerUsed: data.providerUsed }));
           } catch {}
@@ -407,7 +415,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
   return (
     <div className="relative flex h-full min-h-[500px] overflow-hidden flex-col md:flex-row gap-0 md:gap-3">
       {/* 2D Interactive Diagram Surface */}
-      <div className={`min-w-0 flex-1 relative h-44 sm:h-64 md:h-full ${activeTab === 'lab' && !isInspectorCollapsed ? 'md:hidden' : ''}`}>
+      <div className={`min-w-0 flex-1 relative h-44 sm:h-64 md:h-full ${mobileView === 'panel' ? 'hidden md:block' : ''} ${activeTab === 'lab' && (!isInspectorCollapsed || isLabExpanded) ? 'md:hidden' : ''}`}>
         <LearnMateCanvas
           project={project}
           selectedNodeId={selectedNodeId}
@@ -429,7 +437,7 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
 
       {/* Side Inspector, Hands-On Lab, & BOM Panel */}
       {!isInspectorCollapsed && (
-        <aside className={`flex w-full shrink-0 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm ${activeTab === 'lab' ? 'md:flex-1 md:min-w-0' : 'md:w-[360px] lg:w-[420px]'}`}>
+        <aside className={`flex w-full shrink-0 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm ${mobileView === 'blueprint' ? 'hidden md:flex' : 'flex'} ${activeTab === 'lab' ? 'md:flex-1 md:min-w-0' : 'md:w-[360px] lg:w-[420px]'}`}>
           {/* Header Navigation Tabs with Collapse Button */}
           <div className="flex items-center border-b border-gray-200 bg-gray-50 px-1 py-1.5 gap-0.5">
             <button
@@ -477,6 +485,19 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                 {bom.length}
               </span>
             </button>
+
+            {/* Full-screen lab toggle (lab tab only) */}
+            {activeTab === 'lab' && (
+              <button
+                type="button"
+                onClick={() => setIsLabExpanded((v) => !v)}
+                title={isLabExpanded ? 'Restore split view' : 'Expand lab to full screen'}
+                aria-label={isLabExpanded ? 'Restore split view' : 'Expand lab to full screen'}
+                className="hidden md:inline-flex rounded-lg p-2 text-gray-400 hover:bg-gray-200 hover:text-gray-700 transition ml-0.5 shrink-0"
+              >
+                {isLabExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </button>
+            )}
 
             {/* Collapse Panel Button */}
             <button
@@ -716,7 +737,13 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                       type="button"
                       onClick={() => {
                         setLabMode(mode);
-                        fetchLabProtocol(mode);
+                        const saved = savedLabs[mode];
+                        if (saved) {
+                          setLabProtocol(saved.lab);
+                          setLabFallback(saved.providerUsed === 'fallback');
+                        } else {
+                          fetchLabProtocol(mode);
+                        }
                       }}
                       className={`rounded-lg py-3 text-xs sm:text-sm font-semibold transition ${
                         labMode === mode
@@ -759,11 +786,13 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
                       protocol={labProtocol as EmpiricalLabProtocol}
                       onSendToNotepad={onSendToNotepad}
                     />
-                  ) : (
+                  ) : labMode === 'hardware' && labProtocol.mode === 'hardware' ? (
                     <PhysicalLabWorkbench
                       protocol={labProtocol as PhysicalLabProtocol}
                       onSendToNotepad={onSendToNotepad}
                     />
+                  ) : (
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">Loading this guide…</div>
                   )}
                 </>
               ) : <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Could not load this guide. <button type="button" onClick={() => fetchLabProtocol(labMode)} className="font-semibold underline">Try again</button></div>}
@@ -820,6 +849,24 @@ export default function ProjectCanvas({ project, workspaceId, onSendToNotepad }:
           </footer>
         </aside>
       )}
+
+      {/* Mobile view switcher: one full-width view at a time */}
+      <div className="fixed bottom-4 left-1/2 z-30 flex -translate-x-1/2 gap-1 rounded-full border border-gray-200 bg-white/95 p-1 shadow-md backdrop-blur-sm md:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileView('blueprint')}
+          className={`rounded-full px-4 py-2 text-xs font-semibold transition ${mobileView === 'blueprint' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`}
+        >
+          Blueprint
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileView('panel')}
+          className={`rounded-full px-4 py-2 text-xs font-semibold transition ${mobileView === 'panel' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`}
+        >
+          Studio
+        </button>
+      </div>
     </div>
   );
 }

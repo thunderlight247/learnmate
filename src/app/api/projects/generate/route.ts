@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateBlueprint } from '@/lib/blueprint';
+import { extractCustomAiConfig } from '@/lib/aiClient';
 
 export async function POST(request: Request) {
   try {
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
       body.workspaceId,
       body.topic.trim(),
       prisma,
+      extractCustomAiConfig(request),
     );
 
     return NextResponse.json({

@@ -68,9 +68,15 @@ export default function VirtualLabWorkbench({ protocol, onSendToNotepad }: Virtu
 
   // Calculate live telemetry outputs based on user parameters
   const calculatedTelemetry = useMemo(() => {
-    const primaryParam = simulationWorkbench.parameters[0];
-    const primaryVal = primaryParam ? (paramValues[primaryParam.id] ?? primaryParam.defaultValue) : 10;
-    const norm = primaryParam ? (primaryVal - primaryParam.min) / (primaryParam.max - primaryParam.min || 1) : 0.5;
+    // Every slider contributes: the normalized settings are averaged, so moving
+    // any parameter (not only the first) changes the telemetry.
+    const params = simulationWorkbench.parameters;
+    const norm = params.length
+      ? params.reduce((sum, p) => {
+          const v = paramValues[p.id] ?? p.defaultValue;
+          return sum + (v - p.min) / (p.max - p.min || 1);
+        }, 0) / params.length
+      : 0.5;
 
     return simulationWorkbench.telemetryOutputs.map((out) => {
       let computed = out.baseValue;

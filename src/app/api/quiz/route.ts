@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { callAiWithFallback } from '@/lib/aiClient';
+import { callAiWithFallback, extractCustomAiConfig } from '@/lib/aiClient';
 
 // Quiz route contract: expects { context } in JSON and returns a quiz payload in the UI shape.
 // The model is instructed to return strict JSON so the frontend can parse it safely.
@@ -34,6 +34,7 @@ Return ONLY valid JSON matching this exact structure:
 
     // Generate a fresh quiz each time; validate before returning it.
     const { content: aiResponse, provider: providerUsed } = await callAiWithFallback({
+      customConfig: extractCustomAiConfig(request),
       messages: [
         { role: 'system', content: systemPrompt },
         {
